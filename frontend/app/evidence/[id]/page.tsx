@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState, use } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useParams } from "next/navigation";
 import {
   GitBranch,
   Download,
@@ -18,10 +19,10 @@ import { EvidenceObject } from "@/types";
 export default function EvidenceTreePage({
   params,
 }: {
-  params: Promise<{ id: string }>;
+  params: { id: string };
 }) {
-  const resolvedParams = use(params);
-  const analysisId = resolvedParams.id;
+  const routeParams = useParams();
+  const analysisId = (routeParams?.id as string) || params.id;
 
   const [tree, setTree] = useState<EvidenceObject[]>([]);
   const [loading, setLoading] = useState(true);

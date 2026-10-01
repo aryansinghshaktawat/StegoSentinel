@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState, useCallback, use } from "react";
+import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
+import { useParams } from "next/navigation";
 import {
   ShieldAlert,
   FileText,
@@ -28,10 +29,10 @@ import {
 export default function AnalysisDetailPage({
   params,
 }: {
-  params: Promise<{ id: string }>;
+  params: { id: string };
 }) {
-  const resolvedParams = use(params);
-  const analysisId = resolvedParams.id;
+  const routeParams = useParams();
+  const analysisId = (routeParams?.id as string) || params.id;
 
   const [analysis, setAnalysis] = useState<AnalysisDetail | null>(null);
   const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null);

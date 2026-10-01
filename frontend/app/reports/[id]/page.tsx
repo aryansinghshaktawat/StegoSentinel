@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState, use } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useParams } from "next/navigation";
 import {
   FileText,
   Download,
@@ -19,10 +20,10 @@ import { Report } from "@/types";
 export default function ReportViewerPage({
   params,
 }: {
-  params: Promise<{ id: string }>;
+  params: { id: string };
 }) {
-  const resolvedParams = use(params);
-  const analysisId = resolvedParams.id;
+  const routeParams = useParams();
+  const analysisId = (routeParams?.id as string) || params.id;
 
   const [report, setReport] = useState<Report | null>(null);
   const [loading, setLoading] = useState(true);

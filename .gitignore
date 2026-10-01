@@ -58,3 +58,6 @@ yarn-error.log*
 .vscode/
 *.swp
 *.swo
+
+!frontend/lib/
+!frontend/lib/**

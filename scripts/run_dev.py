@@ -28,8 +28,14 @@ def main():
     try:
         # Start Backend API
         print("[+] Launching FastAPI Backend on http://localhost:8000...")
+        venv_uvicorn = BACKEND_DIR / ".venv" / "bin" / "uvicorn"
+        backend_cmd = (
+            [str(venv_uvicorn), "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+            if venv_uvicorn.exists()
+            else ["uv", "run", "--no-sync", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+        )
         backend_proc = subprocess.Popen(
-            ["uv", "run", "--no-sync", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"],
+            backend_cmd,
             cwd=str(BACKEND_DIR),
         )
         processes.append(backend_proc)

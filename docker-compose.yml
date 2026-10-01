@@ -1,0 +1,110 @@
+version: "3.8"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: stegosentinel-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: stego_user
+      POSTGRES_PASSWORD: stego_password
+      POSTGRES_DB: stegosentinel
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - internal_net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U stego_user -d stegosentinel"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: stegosentinel-redis
+    restart: unless-stopped
+    networks:
+      - internal_net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.api
+    container_name: stegosentinel-api
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - ENVIRONMENT=production
+      - DATABASE_URL=postgresql://stego_user:stego_password@postgres:5432/stegosentinel
+      - REDIS_URL=redis://redis:6379/0
+      - ASYNC_MODE=redis
+      - STORAGE_BACKEND=local
+      - STORAGE_LOCAL_PATH=/app/storage/quarantine
+      - CORS_ORIGINS=["http://localhost:3000","http://127.0.0.1:3000"]
+    volumes:
+      - quarantine_data:/app/storage/quarantine
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - frontend_net
+      - internal_net
+
+  worker:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.worker
+    container_name: stegosentinel-worker
+    restart: unless-stopped
+    environment:
+      - ENVIRONMENT=production
+      - DATABASE_URL=postgresql://stego_user:stego_password@postgres:5432/stegosentinel
+      - REDIS_URL=redis://redis:6379/0
+      - ASYNC_MODE=redis
+      - STORAGE_BACKEND=local
+      - STORAGE_LOCAL_PATH=/app/storage/quarantine
+    volumes:
+      - quarantine_data:/app/storage/quarantine
+    tmpfs:
+      - /tmp:size=512M
+    security_opt:
+      - no-new-privileges:true
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - internal_net
+
+  frontend:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.frontend
+    container_name: stegosentinel-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000/api/v1
+    depends_on:
+      - api
+    networks:
+      - frontend_net
+
+volumes:
+  postgres_data:
+  quarantine_data:
+
+networks:
+  frontend_net:
+  internal_net:
+    internal: true

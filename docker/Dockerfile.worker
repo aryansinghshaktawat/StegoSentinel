@@ -1,0 +1,36 @@
+# StegoSentinel Analysis Worker Dockerfile
+FROM python:3.11-slim as base
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
+WORKDIR /app
+
+# Install security updates and specialized forensic tools
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    libimage-exiftool-perl \
+    steghide \
+    binwalk \
+    ruby \
+    && gem install zsteg --no-document \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install uv package manager
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv
+
+# Copy project definition and install dependencies
+COPY backend/pyproject.toml backend/README.md /app/
+RUN uv venv /app/.venv && uv pip install --no-cache -r <(uv pip compile /app/pyproject.toml)
+
+# Copy application source code
+COPY backend/app /app/app
+
+# Non-root unprivileged worker execution
+RUN useradd -u 10001 -m stegouser && \
+    mkdir -p /app/storage/quarantine /tmp/quarantine && \
+    chown -R stegouser:stegouser /app /tmp/quarantine
+
+USER stegouser
+
+CMD ["/app/.venv/bin/python", "-m", "app.worker"]

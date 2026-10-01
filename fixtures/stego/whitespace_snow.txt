@@ -1,0 +1,3 @@
+Line one of legitimate report.   	 
+Line two with trailing spaces.  		
+Line three conclusion.

@@ -40,8 +40,8 @@ coverage.xml
 # Databases & Storage
 *.db
 *.sqlite3
-storage/quarantine/*
-!storage/quarantine/.gitkeep
+**/storage/quarantine/*
+!**/storage/quarantine/.gitkeep
 
 # Node & Frontend
 node_modules/

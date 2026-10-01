@@ -55,6 +55,65 @@ def test_candidate_validator_types():
     assert res_empty.status == "INVALID"
 
 
+def test_rgb_lsb_extraction_returns_bytes(fixtures_path: Path):
+    import io
+
+    import numpy as np
+    from PIL import Image
+
+    from app.candidates.generator import extract_image_bitstream
+
+    stego_png = fixtures_path / "stego" / "stego_lsb_rgb_p0.png"
+    img = Image.open(io.BytesIO(stego_png.read_bytes())).convert("RGB")
+    arr = np.array(img)
+    extracted = extract_image_bitstream(arr, channel_mode="RGB", bit_plane=0, order="sequential", stride=1, max_bytes=2048)
+    assert isinstance(extracted, bytes)
+    assert len(extracted) > 0
+    assert b"FLAG{STEGOSENTINEL_FORENSIC_LSB_EXTRACTED_OK}" in extracted
+
+
+def test_utf8_text_candidate_recognized_and_decoded():
+    # 2. UTF-8 text candidate recognized
+    # 3. decoded_text populated
+    # 4. payload size is correct
+    # 5. encoding is UTF-8
+    # 6. decode_status is SUCCESS
+    sample_text = b"FLAG{FORENSIC_DECODED_PAYLOAD_TEST_12345}\x00extra_carrier_noise_bits"
+    res = validate_candidate_bytes(sample_text)
+    assert res.status == "VALID"
+    assert res.extracted_type == "text/plain"
+    assert res.decode_status == "SUCCESS"
+    assert res.encoding == "UTF-8"
+    assert res.decoded_text == "FLAG{FORENSIC_DECODED_PAYLOAD_TEST_12345}"
+    assert res.payload_size == len(b"FLAG{FORENSIC_DECODED_PAYLOAD_TEST_12345}")
+
+
+def test_invalid_candidate_produces_no_decoded_text():
+    # 7. invalid candidate produces no decoded_text
+    garbage_bytes = bytes([0xFF, 0xFE, 0xFD, 0xFC, 0x01, 0x02, 0x03, 0x80, 0x81, 0x82, 0x83])
+    res = validate_candidate_bytes(garbage_bytes)
+    assert res.decoded_text is None
+    assert res.decode_status in ["INVALID", "UNKNOWN_BINARY", "ENCRYPTED_OR_UNKNOWN"]
+    assert res.status != "VALID"
+
+
+def test_binary_candidate_identified_correctly():
+    # 8. binary candidate is identified correctly
+    zip_bytes = b"PK\x03\x04" + b"\x00" * 30
+    res_zip = validate_candidate_bytes(zip_bytes)
+    assert res_zip.status == "VALID"
+    assert res_zip.extracted_type == "application/zip"
+    assert res_zip.decode_status == "IDENTIFIED"
+    assert res_zip.decoded_text is None
+    assert res_zip.payload_size == len(zip_bytes)
+
+    # High entropy binary
+    high_entropy_bytes = bytes(range(256)) * 4
+    res_high_entropy = validate_candidate_bytes(high_entropy_bytes)
+    assert res_high_entropy.decode_status in ["ENCRYPTED_OR_UNKNOWN", "UNKNOWN_BINARY", "INVALID"]
+    assert res_high_entropy.decoded_text is None
+
+
 def test_candidate_generator_on_stego_image(fixtures_path: Path):
     stego_png = fixtures_path / "stego" / "stego_lsb_rgb_p0.png"
     data = stego_png.read_bytes()
@@ -76,4 +135,8 @@ def test_candidate_generator_on_stego_image(fixtures_path: Path):
     assert top_cand.parameters["channel"] == "RGB"
     assert top_cand.final_score > 0.60
     assert top_cand.status == "VALID"
-    assert b"FLAG{STEGOSENTINEL_FORENSIC_LSB_EXTRACTED_OK}" in top_cand.extracted_bytes
+    assert top_cand.decode_status == "SUCCESS"
+    assert top_cand.decoded_text == "FLAG{STEGOSENTINEL_FORENSIC_LSB_EXTRACTED_OK}"
+    assert top_cand.payload_size == 45
+    assert top_cand.encoding == "UTF-8"
+

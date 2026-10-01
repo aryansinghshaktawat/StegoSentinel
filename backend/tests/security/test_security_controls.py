@@ -136,3 +136,92 @@ def test_prompt_injection_safety():
     summary = provider.generate_summary(hostile_input)
     assert "HACKED" not in summary["executive_summary"]
     assert "Steganography likelihood" in summary["executive_summary"]
+
+
+def test_extracted_payload_zero_execution_policy():
+    import stat
+
+    from app.core.storage import storage
+
+    dangerous_payload = b"#!/bin/bash\nrm -rf /\necho 'MALICIOUS_EXECUTION'\n"
+    ref, path_str = storage.store_file(dangerous_payload, "malicious.sh")
+    file_stat = Path(path_str).stat()
+
+    # Verify no execution permissions are granted (0600)
+    mode = file_stat.st_mode
+    assert (mode & stat.S_IXUSR) == 0, "User execute permission must not be set"
+    assert (mode & stat.S_IXGRP) == 0, "Group execute permission must not be set"
+    assert (mode & stat.S_IXOTH) == 0, "Other execute permission must not be set"
+
+
+def test_candidate_and_evidence_idor_protection(client: TestClient, db_session, analyst_headers):
+    from app.models.base import Candidate, EvidenceObject
+
+    other_analysis = Analysis(
+        id="case_private_tenant_b",
+        user_id="usr_tenant_b",
+        status="COMPLETED",
+        original_filename="secret_tenant_b.png",
+        sha256="abcdef1234567890",
+        size=2048,
+        detected_type="image/png",
+        storage_reference="ref_tenant_b",
+    )
+    db_session.add(other_analysis)
+
+    other_evidence = EvidenceObject(
+        id="evidence_private_tenant_b",
+        analysis_id=other_analysis.id,
+        name="candidate_secret.txt",
+        sha256="hash_tenant_b",
+        size=40,
+        detected_type="text/plain",
+        storage_reference="ref_tenant_b_ev",
+        extraction_method="LSB_RGB_P0_SEQ",
+    )
+    db_session.add(other_evidence)
+
+    other_candidate = Candidate(
+        id="cand_private_tenant_b",
+        analysis_id=other_analysis.id,
+        technique="LSB_RGB_P0_SEQ",
+        parameters={"channel": "RGB", "bit_plane": 0, "order": "sequential"},
+        final_score=0.95,
+        status="VALID",
+        extracted_type="text/plain",
+        decode_status="SUCCESS",
+        decoded_text="TENANT_B_FLAG{SECRET}",
+        evidence_object_id=other_evidence.id,
+    )
+    db_session.add(other_candidate)
+    db_session.commit()
+
+    # Analyst A cannot access Tenant B candidates
+    resp1 = client.get("/api/v1/analyses/case_private_tenant_b/candidates", headers=analyst_headers)
+    assert resp1.status_code == 403
+
+    # Analyst A cannot access Tenant B candidate payload
+    resp2 = client.get("/api/v1/analyses/case_private_tenant_b/candidates/cand_private_tenant_b/payload", headers=analyst_headers)
+    assert resp2.status_code == 403
+
+    # Analyst A cannot access Tenant B evidence DAG
+    resp3 = client.get("/api/v1/analyses/case_private_tenant_b/evidence", headers=analyst_headers)
+    assert resp3.status_code == 403
+
+    # Analyst A cannot download Tenant B evidence
+    resp4 = client.get("/api/v1/evidence/evidence_private_tenant_b/download", headers=analyst_headers)
+    assert resp4.status_code == 403
+
+
+def test_malicious_html_decoded_text_safety():
+    from app.extraction.validators import validate_candidate_bytes
+
+    # A payload containing malicious HTML / XSS attempts
+    xss_payload = b"<script>alert(1)</script>\x00carrier_noise"
+    val_res = validate_candidate_bytes(xss_payload)
+    assert val_res.status == "VALID"
+    assert val_res.extracted_type == "text/plain"
+    assert val_res.decoded_text == "<script>alert(1)</script>"
+    # Validator sets plain text, content is retained verbatim as data, not transformed to executable HTML
+    assert isinstance(val_res.decoded_text, str)
+

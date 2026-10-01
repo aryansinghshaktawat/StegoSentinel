@@ -113,9 +113,27 @@ class Candidate(Base):
     )  # VALID, PARTIAL, INVALID, UNKNOWN
     extracted_type = Column(String(64), nullable=True)
     printable_ratio = Column(Float, nullable=True)
+    validation_description = Column(Text, nullable=True)
+    # Payload metadata only; raw bytes live in quarantine via the linked EvidenceObject.
+    payload_size = Column(Integer, nullable=True)
+    encoding = Column(String(32), nullable=True)
+    decode_status = Column(
+        String(32), default="NOT_ATTEMPTED", nullable=False
+    )  # NOT_ATTEMPTED, SUCCESS, PARTIAL, IDENTIFIED, UNKNOWN_BINARY,
+    #    ENCRYPTED_OR_UNKNOWN, INVALID, FAILED
+    decoded_text = Column(Text, nullable=True)
+    evidence_object_id = Column(
+        String(36),
+        ForeignKey("evidence_objects.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
     created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
 
     analysis = relationship("Analysis", back_populates="candidates")
+    evidence_object = relationship(
+        "EvidenceObject", foreign_keys=[evidence_object_id], back_populates="source_candidates"
+    )
 
 
 class EvidenceObject(Base):
@@ -135,6 +153,9 @@ class EvidenceObject(Base):
     created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
 
     analysis = relationship("Analysis", back_populates="evidence_objects")
+    source_candidates = relationship(
+        "Candidate", foreign_keys="Candidate.evidence_object_id", back_populates="evidence_object"
+    )
     children = relationship(
         "EvidenceObject",
         backref="parent",

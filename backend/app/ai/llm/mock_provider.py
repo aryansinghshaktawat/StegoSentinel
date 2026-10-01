@@ -14,6 +14,7 @@ class MockLLMProvider(LLMProvider):
         stego_likelihood = evidence_summary.get("stego_likelihood", 0.0)
         findings_count = len(evidence_summary.get("findings", []))
         top_candidate = evidence_summary.get("top_candidate")
+        recovered_payload = evidence_summary.get("recovered_payload")
         extracted_objects = evidence_summary.get("extracted_objects_count", 0)
 
         # Formulate executive narrative using strict defensible terminology
@@ -23,7 +24,25 @@ class MockLLMProvider(LLMProvider):
                 f"(Steganography likelihood: {int(stego_likelihood * 100)}%). "
                 f"Evaluation detected {findings_count} anomalous indicators across tested bit-planes and channels. "
             )
-            if top_candidate:
+            if recovered_payload:
+                payload_type = recovered_payload.get("payload_type", "unknown")
+                decode_status = recovered_payload.get("decode_status", "UNKNOWN")
+                if decode_status == "SUCCESS" and recovered_payload.get("decoded_text"):
+                    narrative += (
+                        f"Candidate extraction using technique '{recovered_payload.get('technique')}' "
+                        f"successfully recovered a valid {payload_type} payload. "
+                    )
+                elif decode_status == "IDENTIFIED":
+                    narrative += (
+                        f"Candidate extraction using technique '{recovered_payload.get('technique')}' "
+                        f"identified a {payload_type} payload (binary format, not decodable as plain text). "
+                    )
+                else:
+                    narrative += (
+                        f"Candidate extraction using technique '{recovered_payload.get('technique')}' "
+                        f"yielded a {payload_type} payload that could not be decoded ({decode_status}). "
+                    )
+            elif top_candidate:
                 narrative += (
                     f"Candidate extraction using technique '{top_candidate.get('technique')}' yielded "
                     f"a valid structured payload ({top_candidate.get('extracted_type')}). "
@@ -79,7 +98,43 @@ class MockLLMProvider(LLMProvider):
 
 ---
 
-## 2. Key Forensic Findings ({len(findings)})
+## 2. Recovered Hidden Payload (if extracted)
+"""
+        recovered = evidence_summary.get("recovered_payload")
+        if recovered:
+            md += f"""
+### Extraction Summary
+- **Technique**: `{recovered['technique']}`
+- **Payload Type**: {recovered['payload_type']}
+- **Extraction Confidence**: {recovered['extraction_confidence']:.2%}
+- **Decoding Status**: **{recovered['decode_status']}**
+- **Payload Size**: {recovered['payload_size']} bytes
+- **Encoding**: {recovered.get('encoding', 'N/A')}
+
+"""
+            if recovered.get("decoded_text") and recovered["decode_status"] == "SUCCESS":
+                md += f"""### Recovered Content
+```
+{recovered['decoded_text']}
+```
+
+"""
+            else:
+                md += f"""### Payload Evidence
+- **Evidence Object ID**: {recovered['evidence_object_id']}
+- **SHA-256**: `{recovered['evidence_sha256']}`
+- **Name**: {recovered['evidence_name']}
+
+"""
+        else:
+            md += """
+No hidden payload was successfully extracted and decoded.
+
+"""
+
+        md += f"""---
+
+## 3. Key Forensic Findings ({len(findings)})
 | Severity | Type | Analyzer | Description |
 |---|---|---|---|
 """

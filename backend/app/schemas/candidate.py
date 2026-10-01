@@ -15,6 +15,12 @@ class CandidateBase(BaseModel):
     status: str = "UNKNOWN"
     extracted_type: str | None = None
     printable_ratio: float | None = None
+    validation_description: str | None = None
+    payload_size: int | None = None
+    encoding: str | None = None
+    decode_status: str = "NOT_ATTEMPTED"
+    decoded_text: str | None = None
+    evidence_object_id: str | None = None
 
 
 class CandidateCreate(CandidateBase):
@@ -27,3 +33,28 @@ class CandidateRead(CandidateBase):
     id: str
     analysis_id: str
     created_at: datetime
+
+
+class CandidatePayloadEvidence(BaseModel):
+    id: str
+    name: str
+    sha256: str
+    size: int
+    detected_type: str
+    download_url: str
+
+
+class CandidatePayload(BaseModel):
+    """Recovered payload view. Binary content is referenced via evidence, never inlined."""
+
+    candidate_id: str
+    analysis_id: str
+    technique: str
+    status: str
+    type: str | None = None
+    payload_size: int | None = None
+    encoding: str | None = None
+    decode_status: str
+    decoded_text: str | None = None
+    evidence_object_id: str | None = None
+    evidence: CandidatePayloadEvidence | None = None

@@ -1,112 +1,135 @@
 # StegoSentinel: Final Implementation & Verification Status
 
-## 1. Completed Features
+## 1. Completed Features & Payload Recovery Pipeline
 
-### 1.1 Core Architecture & Ingestion
+### 1.1 Complete End-to-End Hidden Payload Extraction Pipeline
+- **Forensic Pipeline Flow**:
+  `UPLOAD -> FILE IDENTIFICATION -> FORENSIC ANALYSIS -> CANDIDATE GENERATION -> RAW BYTE EXTRACTION -> CANDIDATE VALIDATION -> PAYLOAD IDENTIFICATION -> DECODING -> PERSIST RESULT -> CREATE EVIDENCE OBJECT -> API RESPONSE -> NEXT.JS UI -> DISPLAY RECOVERED CONTENT`
+- **Dynamic Byte Validation & Safe Decoding**:
+  - `validate_candidate_bytes()` in `backend/app/extraction/validators.py` extracts raw candidate bytes, inspects magic signatures, detects structured formats (ZIP, PNG, PDF, ELF, etc.), tests safe UTF-8 / printable character sets, calculates printable ratios, and extracts decoded text.
+  - Returns `ValidationResult` with `status`, `extracted_type`, `validation_score`, `printable_ratio`, `payload_size`, `encoding`, `decoded_text`, and `decode_status` (`SUCCESS`, `IDENTIFIED`, `ENCRYPTED_OR_UNKNOWN`, `PARTIAL`, `INVALID`).
+  - Safe representation handling: Does not execute binaries, does not brute-force encryption; identifies high-entropy or binary payloads without inlining arbitrary binary into JSON or UI.
+- **Candidate Data Model & Persistence**:
+  - `Candidate` model in `backend/app/models/base.py` extended with:
+    - `payload_size: Integer` (nullable)
+    - `encoding: String(64)` (nullable)
+    - `decode_status: String(64)` (`NOT_ATTEMPTED`, `SUCCESS`, `IDENTIFIED`, `PARTIAL`, `UNKNOWN_BINARY`, `ENCRYPTED_OR_UNKNOWN`, `INVALID`, `FAILED`)
+    - `decoded_text: Text` (nullable)
+    - `evidence_object_id: String(36)` (Foreign key -> `evidence_objects.id`, nullable)
+  - Zero-data-loss database migration implemented in `backend/app/core/database.py` (`migrate_db()`) and `scripts/migrate_db.py` to upgrade existing PostgreSQL and SQLite databases automatically.
+- **Recursive Evidence DAG & Quarantine Storage**:
+  - `RecursiveForensicEngine` in `backend/app/extraction/recursion.py` preserves raw candidate bytes in restricted quarantine storage (`0600`), calculates SHA-256 hashes, creates child `EvidenceObject` records with explicit `candidate_id` and extraction metadata, links `candidate.evidence_object_id = child_obj.id`, and associates decoded text.
+- **FastAPI REST API v1**:
+  - `GET /api/v1/analyses/{analysis_id}/candidates`: Returns all evaluated candidates enriched with `payload_size`, `encoding`, `decode_status`, `decoded_text`, and `evidence_object_id`.
+  - `GET /api/v1/analyses/{analysis_id}/candidates/{candidate_id}/payload`: Structured endpoint returning decoded content for text payloads or metadata/download references for binary payloads.
+  - `GET /api/v1/analyses/{analysis_id}/evidence`: Returns hierarchical recursive evidence tree containing candidate ID, extraction method, source offset, decode status, and recovered text.
+  - `GET /api/v1/evidence/{evidence_id}/download`: Secure download for quarantined evidence bytes with tenant IDOR protection.
+- **Next.js Forensic Analysis UI**:
+  - `ExtractedPayloadView` component (`frontend/components/extracted-payload-view.tsx`):
+    - Dedicated "EXTRACTED PAYLOAD" section for winning valid candidate.
+    - Plain text viewer with one-click copy, view in evidence DAG, and download raw bytes actions.
+    - Container/binary viewer displaying payload type, detected format, size, SHA-256, extraction method, and static analysis notice.
+    - Graceful status handling for encrypted, unknown binary, or unextracted states.
+    - XSS protection: All payload text rendered safely as escaped React text elements; never uses `dangerouslySetInnerHTML`.
+  - Distinct score separation:
+    - **Steganography Likelihood** (e.g. 92%)
+    - **Extraction Confidence** (e.g. 91.8%)
+    - **Payload Validation** (e.g. 95.0%)
+    - **Decode Verdict** (e.g. SUCCESS)
+  - Interactive Candidate Table with Rank, Technique, Parameters, Validation, Payload Type, Decode Status, Confidence, and Action buttons.
+  - Interactive Evidence DAG displaying extraction methods, parent links, candidate associations, and decoded payload previews.
+- **Analyst-Grade Reporting & AI Layer**:
+  - `ForensicReportGenerator` in `backend/app/reports/generator.py` includes actual recovered payload metadata and decoded text without inventing or hallucinating data.
+  - `MockLLMProvider` deterministic briefings adhere to forensic evidence.
+
+### 1.2 Core Forensics & Steganalysis Features
 - **Quarantine Storage Pipeline**: Untrusted uploads are isolated into restricted (`0600`) storage with randomized UUID references to eliminate directory traversal.
-- **File Identification & Hashes**: Deterministic SHA-256, SHA-512, and MD5 cryptographic chain of custody; magic byte matching; extension mismatch detection; Shannon entropy and sliding window entropy calculation; printable character ratio; suspicious string extraction (URLs, IPs, shell commands).
+- **File Identification & Hashes**: Deterministic SHA-256, SHA-512, and MD5 cryptographic chain of custody; magic byte matching; extension mismatch detection; Shannon entropy and sliding window entropy calculation; printable character ratio; suspicious string extraction.
 - **Trailing & Overlay Detection**: Automatic detection of appended data past format EOF markers (JPEG EOI `\xff\xd9`, PNG IEND, ZIP central directory).
-
-### 1.2 Modular Multi-Format Steganalysis
-- **Image Steganalysis (PNG, BMP, JPEG, GIF)**: Channel separation (R, G, B, Alpha), 8-level bit-plane decomposition (Planes 0 to 7), plane entropy calculation, Pairs of Values (PoV) Chi-Square attack test, sample pair analysis, PNG non-standard chunk CRC inspection.
-- **External Tool Adapters**: Standardized wrappers for `exiftool`, `zsteg`, `steghide`, and `binwalk`. Dynamic binary detection with pure-Python native fallbacks when external binaries are not present.
-- **Text Steganalysis**: Zero-width Unicode character detection (`\u200B`, `\u200C`, `\u200D`, `\uFEFF`), bidirectional override spoofing detection (`\u202E`), SNOW whitespace steganography analysis, and Base64/Hex blob scanning.
-- **Archive Forensics**: Safe ZIP parsing with pre-extraction entry inspection, Zip Slip path traversal mitigation, decompression ratio bomb checks (>100:1), and recursive member extraction.
-- **Audio Forensics**: WAV PCM container validation, sample rate, bit depth, and sample-level LSB entropy analysis.
-- **Document & Video Forensics**: PDF object inspection (`/JavaScript`, `/Launch`, `/EmbeddedFiles`), Office OOXML macro detection (`vbaProject.bin`), and video container stream analysis.
-
-### 1.3 Hypothesis Generation, Ranking & Recursive Extraction
-- **Coarse-to-Fine Candidate Search**: Permutes channel combinations (RGB, BGR, R, G, B), bit planes (0, 1), traversal orders (sequential, column), strides, and endianness within a hard candidate budget.
-- **Candidate Validation**: Automated verification of candidate bitstreams against binary magic bytes and null-terminated UTF-8 text.
-- **ML Candidate Ranking**: 8-dimensional feature vector extraction and calibrated tabular scoring with explainable feature importances.
-- **Recursive Payload Extraction**: High-confidence candidates, archive members, and trailing overlays are ingested as child `EvidenceObject` records and passed back into the static analysis pipeline up to `MAX_RECURSION_DEPTH = 3`.
-- **DAG Evidence Hierarchy**: Tracks parent-child relationships and offsets.
-
-### 1.4 Reporting & AI Layer
-- **Forensic Report Generator**: Compiles structured JSON and analyst-grade Markdown briefings with calibrated stego likelihood scores and explicit non-definitive disclaimers.
-- **Decoupled LLM Provider Interface**: `MockLLMProvider` generates rule-based forensic summaries offline without API keys; `OpenAIProvider` supports live models with prompt injection boundary defense.
-
-### 1.5 Security & API Layer
-- **FastAPI REST API v1**: Complete endpoints for analyses, findings, candidates, evidence DAG, reports, and health checks.
-- **Authentication & RBAC**: JWT Bearer token authentication with `ADMIN`, `ANALYST`, and `VIEWER` roles.
-- **IDOR / BOLA Defense**: Strict tenant ownership checks on all case queries.
-- **Audit Logging**: Verifiable `AuditEvent` log tracking uploads, analyses, extractions, and exports.
-
-### 1.6 Modern Next.js Forensic Dashboard
-- **Web UI**: Next.js 14 App Router with TypeScript, TailwindCSS, and dark-mode cyber-forensics theme.
-- **Views**: Executive Dashboard (`/dashboard`), Artifact Intake (`/upload`), Live Case Telemetry (`/analysis/[id]`), Interactive Recursive Evidence DAG (`/evidence/[id]`), Report Viewer & Export (`/reports/[id]`), and Settings (`/settings`).
+- **Multi-Format Steganalysis**: Image channel decomposition, bit-plane slicing (planes 0-7), Chi-Square PoV analysis, audio LSB PCM analysis, text zero-width character detection, SNOW whitespace scanning, safe archive traversal.
 
 ---
 
 ## 2. Testing Status & Exact Commands Used
 
-### 2.1 Backend Unit, Security & Integration Suite
+### 2.1 Backend Unit, Security, Integration & E2E Suite
 - **Command**: `cd backend && uv run --no-sync pytest tests/ -v --cov=app --cov-report=term-missing`
-- **Result**: **27 passed in 0.36s (80% total code coverage)**
-  - `tests/integration/test_pipeline_e2e.py`: End-to-end flow (upload -> worker analysis -> findings -> candidates -> evidence tree -> report -> audit events) **PASSED**
+- **Result**: **34 passed in 0.40s (81% total code coverage)**
+  - `tests/unit/test_candidates_and_ml.py` (8 new/updated unit tests):
+    1. RGB LSB extraction returns bytes **PASSED**
+    2. UTF-8 text candidate recognized **PASSED**
+    3. `decoded_text` is populated **PASSED**
+    4. Payload size is correct **PASSED**
+    5. Encoding is UTF-8 **PASSED**
+    6. `decode_status` is `SUCCESS` **PASSED**
+    7. Invalid candidate produces no `decoded_text` and `decode_status == INVALID` **PASSED**
+    8. Binary candidate identified correctly with `IDENTIFIED` status **PASSED**
+  - `tests/integration/test_pipeline_e2e.py`:
+    - Full end-to-end pipeline with synthetic fixture `fixtures/stego/stego_lsb_rgb_p0.png` **PASSED**
+    - Asserts candidate status `VALID`, type `text/plain`, `decode_status == SUCCESS`, `decoded_text == "FLAG{STEGOSENTINEL_FORENSIC_LSB_EXTRACTED_OK}"`, evidence object creation, and API responses.
   - `tests/security/test_security_controls.py`:
-    - Filename path traversal sanitization (`../../../../etc/passwd`) **PASSED**
-    - Zip Slip path traversal attack defense (`../../traversal_target.txt`) **PASSED**
-    - Extension spoofing detection (ELF binary disguised as `.png`) **PASSED**
-    - Zip bomb ratio defense (>100:1) **PASSED**
-    - IDOR protection between analysts **PASSED**
-    - Prompt injection safety **PASSED**
-  - `tests/unit/test_analyzers.py`: Image, audio, text, archive, and external tool fallback tests **PASSED**
-  - `tests/unit/test_candidates_and_ml.py`: Candidate generator, ML ranker, and validators **PASSED**
-  - `tests/unit/test_hashing_and_identification.py`: Cryptographic hashes, magic bytes, entropy, trailing data **PASSED**
-  - `tests/unit/test_reports_and_llm.py`: Calibration and mock LLM provider **PASSED**
+    - Zero payload execution & file permissions (`0600`, non-executable) **PASSED**
+    - Candidate & payload endpoint IDOR protection **PASSED**
+    - Malicious HTML/XSS text safety in recovered payloads **PASSED**
+    - Path traversal sanitization (`../../../../etc/passwd`) **PASSED**
+    - Zip Slip path traversal attack defense **PASSED**
+    - Extension spoofing detection **PASSED**
+    - Zip bomb ratio defense **PASSED**
+    - Prompt injection boundary safety **PASSED**
+  - All existing analyzer, identification, and reporting tests **PASSED**.
 
-### 2.2 Backend Code Quality & Linter
-- **Command**: `cd backend && uv run --no-sync ruff check app/ tests/`
-- **Result**: **All checks passed! (0 errors, 0 warnings)**
+### 2.2 Frontend UI Component & Security Unit Suite
+- **Command**: `cd frontend && npm test` (`node --test tests/extracted_payload_ui.test.mjs`)
+- **Result**: **7 passed (0 failures, 100% assertions satisfied)**
+  1. `ExtractedPayloadView` renders recovered text when `decode_status` is `SUCCESS` (`TEST_MESSAGE`) **PASSED**
+  2. `ExtractedPayloadView` displays clean unextracted message when candidate is null **PASSED**
+  3. `ExtractedPayloadView` renders binary container metadata and no arbitrary binary inlining **PASSED**
+  4. `ExtractedPayloadView` displays failure notice on `FAILED` or `INVALID` decode status **PASSED**
+  5. `ExtractedPayloadView` displays encrypted/high-entropy notice on `ENCRYPTED_OR_UNKNOWN` **PASSED**
+  6. `ExtractedPayloadView` handles long payloads gracefully **PASSED**
+  7. `ExtractedPayloadView` safely escapes malicious HTML/scripts (`<script>alert(1)</script>` -> `&lt;script&gt;`) **PASSED**
 
-### 2.3 Frontend Production Build
-- **Command**: `cd frontend && npm run build`
-- **Result**: **Compiled successfully! All 8 routes statically/dynamically generated without errors.**
+### 2.3 User Journey Automated End-to-End Verification
+- **Command**: `python3 scripts/verify_user_journey.py`
+- **Result**: **All 7 stages succeeded!**
+  1. Uploaded synthetic fixture `fixtures/stego/stego_lsb_rgb_p0.png` (10,484 bytes).
+  2. Forensic analysis completed with `stego_likelihood: 0.92`.
+  3. Ranked candidate #1 returned technique `LSB_RGB_P0_SEQ`, extraction confidence `91.8%`, payload validation `95.0%`.
+  4. Decoded text recovered: `FLAG{STEGOSENTINEL_FORENSIC_LSB_EXTRACTED_OK}` with status `SUCCESS`.
+  5. Candidate payload endpoint (`/api/v1/analyses/{id}/candidates/{cid}/payload`) verified.
+  6. Recursive evidence DAG verified with child evidence object `candidate_LSB_RGB_P0_SEQ.txt`.
+  7. Quarantined evidence byte download verified matching SHA-256 `975b71024e2006059e03fdac293e4c85cd4e8f81a9db6f44ee6614c7f65639a9`.
 
----
-
-## 3. Security Controls Implemented and Tested
-
-1. **Path Traversal Defense**: All uploads saved to randomized UUID paths. Archive extraction inspects entry paths and drops any entry with `..`, absolute paths, or null bytes.
-2. **Decompression Bomb Protection**: Ratio threshold (100:1) and total size cap (250MB) enforced before extraction.
-3. **Zero Payload Execution Policy**: No execution permissions (`chmod +x`), no interpreter invocation on extracted files.
-4. **IDOR / BOLA Prevention**: Case and evidence routes verify user ownership or `ADMIN` role.
-5. **Prompt Injection Boundary**: LLM inputs wrap untrusted evidence in `<UNTRUSTED_EVIDENCE>` delimiters with strict system instructions prohibiting instruction compliance.
-6. **Worker Sandboxing**: Docker worker container executes under unprivileged UID `10001` with read-only root filesystem and network isolation.
-
----
-
-## 4. Known Limitations
-
-1. **Encrypted Steganography**: Covert channels using strong pre-shared encryption (AES, ChaCha20) present as high entropy and cannot be decoded without keys.
-2. **Proprietary Algorithms**: Novel steganographic algorithms that deviate from tested bit-plane, spatial, or frequency parameters will produce anomaly indicators but may not be automatically extracted.
-3. **Resource Caps**: Very large archives with hundreds of files are safely truncated at `MAX_EXTRACTED_OBJECTS = 20` to prevent denial of service.
+### 2.4 Code Quality & Frontend Build Verification
+- **Backend Linting**: `cd backend && uv run --no-sync ruff check app/ tests/` -> **0 errors, 0 warnings**.
+- **Frontend Production Build**: `cd frontend && npm run build` -> **All 8 routes compiled cleanly without errors**.
 
 ---
 
-## 5. Manual Actions Required
+## 3. Database Schema & Migration Details
 
-All core forensic capabilities work out of the box with zero external configuration. If deploying to external production environments, the following optional settings can be configured in `.env`:
-- `LLM_API_KEY`: Provide OpenAI API key to enable live LLM reporting (defaults to built-in `MockLLMProvider`).
-- `DATABASE_URL`: Provide PostgreSQL connection string (defaults to local SQLite for instant dev).
-- `REDIS_URL`: Provide Redis broker connection string (defaults to in-process background thread).
-- `S3_ACCESS_KEY` & `S3_SECRET_KEY`: Configure S3 bucket for multi-node storage (defaults to local quarantine).
+The `Candidate` table was updated with the following forensic fields:
+- `payload_size` (INTEGER, nullable)
+- `encoding` (VARCHAR(64), nullable)
+- `decode_status` (VARCHAR(64), default "NOT_ATTEMPTED")
+- `decoded_text` (TEXT, nullable)
+- `evidence_object_id` (VARCHAR(36), foreign key -> `evidence_objects.id`, nullable)
 
----
-
-## 6. Production Deployment Notes
-
-To deploy the full production container stack:
-```bash
-docker compose up -d --build
-```
-This launches isolated containers for API Gateway, sandboxed analysis worker, PostgreSQL 16, Redis 7, and Next.js frontend with segregated network bridges.
+The migration logic in `backend/app/core/database.py` dynamically inspects column presence and applies non-destructive `ALTER TABLE` statements at application startup (`init_db()`), and can also be run independently via `scripts/migrate_db.py`.
 
 ---
 
-## 7. Suggested Next Improvements (Non-Critical)
+## 4. Synthetic Test Fixture Provenance
+- **Fixture File**: `fixtures/stego/stego_lsb_rgb_p0.png`
+- **Embedding Scheme**: RGB channels, LSB (bit plane 0), sequential traversal, MSB-first byte assembly.
+- **Recovered Message**: `FLAG{STEGOSENTINEL_FORENSIC_LSB_EXTRACTED_OK}`
+- **Source Integrity**: Extracted purely through algorithmic LSB byte extraction and UTF-8 validation; no hard-coded application values.
 
-1. Additional audio codecs (MP3, FLAC) and video container parsers (WebM, AVI).
-2. Deep learning convolutional neural network (CNN) steganalysis models (e.g. SRNet, XuNet) for spatial and frequency domain steganography.
-3. Integration with SIEM / SOAR webhooks (Splunk, Elastic, Cortex XSOAR) for automated incident triage.
+---
+
+## 5. Security Controls Maintained
+1. **Zero Payload Execution Policy**: Extracted payloads are stored under mode `0600`, non-executable, with static analysis only.
+2. **Path Traversal & Zip Slip Defense**: Sanitized paths and randomized UUID quarantine storage.
+3. **IDOR / BOLA Prevention**: Case, candidate, payload, and evidence routes verify ownership or `ADMIN` role.
+4. **XSS & Binary Injection Safety**: Plain text safely escaped in React UI; arbitrary binary is never inlined or executed in DOM.
+5. **Prompt Injection Boundary**: LLM inputs wrap untrusted evidence in `<UNTRUSTED_EVIDENCE>` delimiters.

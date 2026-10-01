@@ -30,6 +30,12 @@ class CandidateResult:
     extracted_type: str
     printable_ratio: float
     extracted_bytes: bytes
+    description: str = ""
+    payload_size: int = 0
+    encoding: str | None = None
+    decode_status: str = "NOT_ATTEMPTED"
+    decoded_text: str | None = None
+    payload_bytes: bytes = b""
 
 
 def extract_image_bitstream(
@@ -193,6 +199,12 @@ class CandidateGenerator:
                                 extracted_type=val_res.extracted_type,
                                 printable_ratio=val_res.printable_ratio,
                                 extracted_bytes=extracted,
+                                description=val_res.description,
+                                payload_size=val_res.payload_size,
+                                encoding=val_res.encoding,
+                                decode_status=val_res.decode_status,
+                                decoded_text=val_res.decoded_text,
+                                payload_bytes=val_res.payload_bytes,
                             )
                         )
 

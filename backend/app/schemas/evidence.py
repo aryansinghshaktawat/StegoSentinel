@@ -28,4 +28,8 @@ class EvidenceObjectRead(EvidenceObjectBase):
 
 
 class EvidenceTreeNode(EvidenceObjectRead):
+    # Derived from the Candidate that produced this object, when it came from stego extraction.
+    candidate_id: str | None = None
+    decode_status: str | None = None
+    decoded_text: str | None = None
     children: list["EvidenceTreeNode"] = []

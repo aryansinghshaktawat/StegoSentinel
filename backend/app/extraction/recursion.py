@@ -18,6 +18,7 @@ from app.candidates.generator import CandidateResult, candidate_generator
 from app.core.limits import LIMITS
 from app.core.storage import storage
 from app.models.base import Analysis, Candidate, EvidenceObject, Finding
+from app.services.audit_service import audit_service
 
 
 @dataclass
@@ -26,6 +27,8 @@ class ExtractionNode:
     data: bytes
     extraction_method: str
     source_offset: int = 0
+    # Candidate whose recovered payload this node preserves; linked once the child exists.
+    candidate: Candidate | None = None
 
 
 class RecursiveForensicEngine:
@@ -98,6 +101,7 @@ class RecursiveForensicEngine:
 
         # 2. Run candidate generation if image or media format
         candidates: list[CandidateResult] = []
+        db_candidates: list[Candidate] = []
         if depth == 0 or detected_mime.startswith("image/"):
             candidates = candidate_generator.generate_candidates(context)
             for c in candidates:
@@ -113,8 +117,14 @@ class RecursiveForensicEngine:
                     status=c.status,
                     extracted_type=c.extracted_type,
                     printable_ratio=c.printable_ratio,
+                    validation_description=c.description,
+                    payload_size=c.payload_size,
+                    encoding=c.encoding,
+                    decode_status=c.decode_status,
+                    decoded_text=c.decoded_text,
                 )
                 self.db.add(db_candidate)
+                db_candidates.append(db_candidate)
 
         self.db.flush()
 
@@ -152,9 +162,10 @@ class RecursiveForensicEngine:
                     )
                 )
 
-        # C. High-confidence stego candidates (VALID status or final_score >= 0.70)
-        for cand in candidates:
-            if cand.status == "VALID" and len(cand.extracted_bytes) >= 16:
+        # C. Top-ranked VALID stego candidate. Only one is preserved: lower-ranked VALID
+        # candidates are usually alternate readings of the same embedded payload.
+        for cand, db_cand in zip(candidates, db_candidates, strict=True):
+            if cand.status == "VALID" and cand.payload_bytes:
                 ext = ".bin"
                 if cand.extracted_type == "text/plain":
                     ext = ".txt"
@@ -164,12 +175,13 @@ class RecursiveForensicEngine:
                 children_to_extract.append(
                     ExtractionNode(
                         name=f"candidate_{cand.technique}{ext}",
-                        data=cand.extracted_bytes,
+                        data=cand.payload_bytes,
                         extraction_method=cand.technique,
                         source_offset=0,
+                        candidate=db_cand,
                     )
                 )
-                break  # Extract top candidate to avoid redundancy
+                break
 
         # Recursively process identified child nodes
         for child in children_to_extract:
@@ -181,7 +193,7 @@ class RecursiveForensicEngine:
             self.total_extracted_objects += 1
             self.cumulative_extracted_bytes += len(child.data)
 
-            self.process_file_recursive(
+            child_obj = self.process_file_recursive(
                 file_bytes=child.data,
                 filename=child.name,
                 parent_id=evidence_obj.id,
@@ -189,5 +201,23 @@ class RecursiveForensicEngine:
                 extraction_method=child.extraction_method,
                 source_offset=child.source_offset,
             )
+            if child.candidate is not None:
+                child.candidate.evidence_object_id = child_obj.id
+                self.db.flush()
+                audit_service.log_event(
+                    self.db,
+                    actor="SYSTEM",
+                    action="CANDIDATE_PAYLOAD_PRESERVED",
+                    object_id=self.analysis.id,
+                    metadata={
+                        "candidate_id": child.candidate.id,
+                        "technique": child.candidate.technique,
+                        "evidence_object_id": child_obj.id,
+                        "sha256": child_obj.sha256,
+                        "payload_size": child_obj.size,
+                        "payload_type": child.candidate.extracted_type,
+                        "decode_status": child.candidate.decode_status,
+                    },
+                )
 
         return evidence_obj

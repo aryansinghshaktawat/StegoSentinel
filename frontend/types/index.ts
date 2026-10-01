@@ -28,7 +28,36 @@ export interface Candidate {
   status: "VALID" | "PARTIAL" | "INVALID" | "UNKNOWN";
   extracted_type?: string;
   printable_ratio?: number;
+  validation_description?: string;
+  payload_size?: number;
+  encoding?: string;
+  decode_status: string;
+  decoded_text?: string;
+  evidence_object_id?: string;
   created_at: string;
+}
+
+export interface CandidatePayloadEvidence {
+  id: string;
+  name: string;
+  sha256: string;
+  size: number;
+  detected_type: string;
+  download_url: string;
+}
+
+export interface CandidatePayload {
+  candidate_id: string;
+  analysis_id: string;
+  technique: string;
+  status: string;
+  type?: string;
+  payload_size?: number;
+  encoding?: string;
+  decode_status: string;
+  decoded_text?: string;
+  evidence_object_id?: string;
+  evidence?: CandidatePayloadEvidence;
 }
 
 export interface EvidenceObject {
@@ -45,6 +74,9 @@ export interface EvidenceObject {
   recursion_depth: number;
   created_at: string;
   children?: EvidenceObject[];
+  candidate_id?: string;
+  decode_status?: string;
+  decoded_text?: string;
 }
 
 export interface AnalysisSummary {

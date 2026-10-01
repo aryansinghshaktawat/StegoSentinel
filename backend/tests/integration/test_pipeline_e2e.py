@@ -54,6 +54,29 @@ def test_full_analysis_pipeline_e2e(
     assert len(candidates) > 0
     top_cand = candidates[0]
     assert top_cand["final_score"] > 0.60
+    assert top_cand["status"] == "VALID"
+    assert top_cand["extracted_type"] == "text/plain"
+    assert top_cand["decode_status"] == "SUCCESS"
+    assert top_cand["decoded_text"] == "FLAG{STEGOSENTINEL_FORENSIC_LSB_EXTRACTED_OK}"
+    assert top_cand["payload_size"] == 45
+    assert top_cand["encoding"] == "UTF-8"
+    assert top_cand["evidence_object_id"] is not None
+
+    # 5b. Check Candidate Payload Endpoint
+    payload_resp = client.get(
+        f"/api/v1/analyses/{analysis_id}/candidates/{top_cand['id']}/payload",
+        headers=analyst_headers,
+    )
+    assert payload_resp.status_code == 200
+    payload_data = payload_resp.json()
+    assert payload_data["decode_status"] == "SUCCESS"
+    assert payload_data["decoded_text"] == "FLAG{STEGOSENTINEL_FORENSIC_LSB_EXTRACTED_OK}"
+    assert payload_data["type"] == "text/plain"
+    assert payload_data["payload_size"] == 45
+    assert payload_data["evidence_object_id"] == top_cand["evidence_object_id"]
+    assert payload_data["evidence"] is not None
+    assert payload_data["evidence"]["detected_type"] == "text/plain"
+    assert payload_data["evidence"]["size"] == 45
 
     # 6. Check Evidence Hierarchy Tree
     evidence_resp = client.get(f"/api/v1/analyses/{analysis_id}/evidence", headers=analyst_headers)
@@ -62,8 +85,20 @@ def test_full_analysis_pipeline_e2e(
     assert len(evidence_tree) > 0
     root_node = evidence_tree[0]
     assert root_node["recursion_depth"] == 0
-    # Child payload node should exist in tree
+    # Child payload node should exist in tree and link to the winning candidate
     assert len(root_node["children"]) > 0
+    child_node = root_node["children"][0]
+    assert child_node["id"] == top_cand["evidence_object_id"]
+    assert child_node["candidate_id"] == top_cand["id"]
+    assert child_node["decode_status"] == "SUCCESS"
+    assert child_node["decoded_text"] == "FLAG{STEGOSENTINEL_FORENSIC_LSB_EXTRACTED_OK}"
+
+    # 6b. Download evidence payload and confirm contents
+    dl_resp = client.get(
+        f"/api/v1/evidence/{child_node['id']}/download", headers=analyst_headers
+    )
+    assert dl_resp.status_code == 200
+    assert dl_resp.content == b"FLAG{STEGOSENTINEL_FORENSIC_LSB_EXTRACTED_OK}"
 
     # 7. Check JSON Report
     report_json_resp = client.get(
@@ -80,6 +115,8 @@ def test_full_analysis_pipeline_e2e(
     )
     assert report_md_resp.status_code == 200
     assert "# StegoSentinel Forensic Analysis Report" in report_md_resp.text
+    assert "FLAG{STEGOSENTINEL_FORENSIC_LSB_EXTRACTED_OK}" in report_md_resp.text
+
 
     # 9. Check Audit Events
     events_resp = client.get(f"/api/v1/analyses/{analysis_id}/events", headers=analyst_headers)

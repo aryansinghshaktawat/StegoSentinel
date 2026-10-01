@@ -70,14 +70,44 @@ def generate_forensic_report(db: Session, analysis: Analysis) -> LLMReport:
     analysis.stego_likelihood = stego_likelihood
     db.flush()
 
+    evidence_by_id = {eo.id: eo for eo in evidence_objs}
+
     top_cand_dict = None
     if candidates:
         top_cand = candidates[0]
         top_cand_dict = {
+            "id": top_cand.id,
             "technique": top_cand.technique,
+            "parameters": top_cand.parameters,
             "final_score": top_cand.final_score,
+            "validation_score": top_cand.validation_score,
             "extracted_type": top_cand.extracted_type,
             "status": top_cand.status,
+            "payload_size": top_cand.payload_size,
+            "encoding": top_cand.encoding,
+            "decode_status": top_cand.decode_status,
+        }
+
+    # The recovered payload is whichever candidate the extraction engine actually preserved
+    # as evidence; decoded_text is copied verbatim from the validator, never synthesized.
+    recovered_payload = None
+    extracted = next((c for c in candidates if c.evidence_object_id), None)
+    if extracted:
+        eo = evidence_by_id.get(extracted.evidence_object_id)
+        recovered_payload = {
+            "candidate_id": extracted.id,
+            "technique": extracted.technique,
+            "parameters": extracted.parameters,
+            "extraction_confidence": extracted.final_score,
+            "validation_score": extracted.validation_score,
+            "payload_type": extracted.extracted_type,
+            "payload_size": extracted.payload_size,
+            "encoding": extracted.encoding,
+            "decode_status": extracted.decode_status,
+            "decoded_text": extracted.decoded_text,
+            "evidence_object_id": extracted.evidence_object_id,
+            "evidence_name": eo.name if eo else None,
+            "evidence_sha256": eo.sha256 if eo else None,
         }
 
     evidence_summary: dict[str, Any] = {
@@ -106,10 +136,12 @@ def generate_forensic_report(db: Session, analysis: Analysis) -> LLMReport:
                 "final_score": c.final_score,
                 "status": c.status,
                 "extracted_type": c.extracted_type,
+                "decode_status": c.decode_status,
             }
             for c in candidates
         ],
         "top_candidate": top_cand_dict,
+        "recovered_payload": recovered_payload,
         "extracted_objects_count": len(evidence_objs),
         "evidence_objects": [
             {

@@ -1,11 +1,14 @@
 """
 Main entry point for StegoSentinel FastAPI service.
 """
-from contextlib import asynccontextmanager
+
 import logging
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+
 from app.api.v1.router import api_v1_router
 from app.core.config import settings
 from app.core.database import init_db
@@ -45,10 +48,12 @@ app.add_middleware(
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
-    logger.error(f"Unhandled exception on {request.url.path}: {str(exc)}", exc_info=True)
+    logger.error(f"Unhandled exception on {request.url.path}: {exc!s}", exc_info=True)
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-        content={"detail": "An internal forensic processing fault occurred. Error recorded in audit log."},
+        content={
+            "detail": "An internal forensic processing fault occurred. Error recorded in audit log."
+        },
     )
 
 

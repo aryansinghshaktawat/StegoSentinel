@@ -3,8 +3,9 @@ Candidate payload validation engine for StegoSentinel.
 Determines whether an extracted bitstream represents valid text, structured binary,
 an archive, or random noise.
 """
+
 from dataclasses import dataclass
-from typing import Optional, Tuple
+
 from app.analyzers.general import MAGIC_SIGNATURES, calculate_entropy, extract_strings_and_ratios
 
 
@@ -42,7 +43,26 @@ def validate_candidate_bytes(data: bytes) -> ValidationResult:
                 is_known_format=True,
             )
 
-    # 2. Check Text Validity
+    # 2. Check for null-terminated string payload
+    first_null = data.find(b"\x00")
+    if first_null != -1 and first_null >= 6:
+        prefix = data[:first_null]
+        p_prefix, _, _ = extract_strings_and_ratios(prefix)
+        if p_prefix >= 0.80:
+            try:
+                decoded_prefix = prefix.decode("utf-8")
+                return ValidationResult(
+                    status="VALID",
+                    extracted_type="text/plain",
+                    validation_score=0.95,
+                    printable_ratio=p_prefix,
+                    description=f"Extracted null-terminated UTF-8 text payload: '{decoded_prefix[:40]}...'",
+                    is_known_format=True,
+                )
+            except UnicodeDecodeError:
+                pass
+
+    # 3. Check Text Validity across sample window
     printable_ratio, null_ratio, _ = extract_strings_and_ratios(data[:1024])
     entropy = calculate_entropy(data[:1024])
 
@@ -50,7 +70,9 @@ def validate_candidate_bytes(data: bytes) -> ValidationResult:
         sample_text = data[:1024].decode("utf-8")
         if printable_ratio >= 0.85:
             # Check for common flag or readable markers
-            has_flag = any(k in sample_text for k in ["FLAG{", "flag{", "CONFIDENTIAL", "SECRET", "http"])
+            has_flag = any(
+                k in sample_text for k in ["FLAG{", "flag{", "CONFIDENTIAL", "SECRET", "http"]
+            )
             score = 0.95 if has_flag else 0.85
             return ValidationResult(
                 status="VALID",

@@ -1,17 +1,14 @@
 """
 Configuration management for StegoSentinel using pydantic-settings.
 """
+
 from pathlib import Path
-from typing import List, Optional
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(
-        env_file=".env",
-        env_file_encoding="utf-8",
-        extra="ignore"
-    )
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     # General
     ENVIRONMENT: str = "development"
@@ -22,7 +19,7 @@ class Settings(BaseSettings):
     API_HOST: str = "0.0.0.0"
     API_PORT: int = 8000
     API_V1_PREFIX: str = "/api/v1"
-    CORS_ORIGINS: List[str] = ["http://localhost:3000", "http://127.0.0.1:3000"]
+    CORS_ORIGINS: list[str] = ["http://localhost:3000", "http://127.0.0.1:3000"]
 
     # Security & Auth
     JWT_SECRET_KEY: str = "dev-insecure-secret-key-change-in-prod-32bytes!"
@@ -39,15 +36,15 @@ class Settings(BaseSettings):
     # Quarantine Storage
     STORAGE_BACKEND: str = "local"
     STORAGE_LOCAL_PATH: str = "./storage/quarantine"
-    S3_ENDPOINT_URL: Optional[str] = None
-    S3_ACCESS_KEY: Optional[str] = None
-    S3_SECRET_KEY: Optional[str] = None
+    S3_ENDPOINT_URL: str | None = None
+    S3_ACCESS_KEY: str | None = None
+    S3_SECRET_KEY: str | None = None
     S3_BUCKET_NAME: str = "stegosentinel-quarantine"
 
     # Machine Learning & AI
     ML_MODEL_PATH: str = "./ml/models/stego_ranker.pkl"
     LLM_PROVIDER: str = "mock"  # "mock" or "openai"
-    LLM_API_KEY: Optional[str] = None
+    LLM_API_KEY: str | None = None
     LLM_MODEL: str = "gpt-4o-mini"
 
     # Hard Forensic Budgets (default to ForensicLimits)

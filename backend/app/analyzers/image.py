@@ -4,16 +4,18 @@ Performs channel separation, bit-plane decomposition (planes 0-7),
 Shannon entropy per plane, Chi-square (PoV) statistical tests, and chunk validation.
 Supports PNG, BMP, JPEG, GIF.
 """
+
 import io
 import math
-from typing import Dict, List, Tuple
+
 import numpy as np
 from PIL import Image
-from app.analyzers.base import BaseAnalyzer, AnalysisContext, FindingData
+
+from app.analyzers.base import AnalysisContext, BaseAnalyzer, FindingData
 from app.analyzers.general import calculate_entropy
 
 
-def perform_chi_square_test(channel_data: np.ndarray) -> Tuple[float, float]:
+def perform_chi_square_test(channel_data: np.ndarray) -> tuple[float, float]:
     """
     Perform Chi-Square attack on Pairs of Values (PoVs 2k, 2k+1).
     Sequential LSB embedding equalizes frequencies of 2k and 2k+1.
@@ -53,8 +55,8 @@ class ImageAnalyzer(BaseAnalyzer):
     def can_analyze(self, context: AnalysisContext) -> bool:
         return context.mime_type.startswith("image/")
 
-    def analyze(self, context: AnalysisContext) -> List[FindingData]:
-        findings: List[FindingData] = []
+    def analyze(self, context: AnalysisContext) -> list[FindingData]:
+        findings: list[FindingData] = []
         try:
             img = Image.open(io.BytesIO(context.file_bytes))
         except Exception as e:
@@ -63,7 +65,7 @@ class ImageAnalyzer(BaseAnalyzer):
                     type="IMAGE_DECODE_ERROR",
                     severity="LOW",
                     confidence=0.9,
-                    description=f"Unable to parse image structure: {str(e)}",
+                    description=f"Unable to parse image structure: {e!s}",
                     evidence={"error": str(e)},
                     analyzer=self.name,
                     analyzer_version=self.version,
@@ -100,8 +102,8 @@ class ImageAnalyzer(BaseAnalyzer):
 
         channels = {"Red": img_arr[:, :, 0], "Green": img_arr[:, :, 1], "Blue": img_arr[:, :, 2]}
 
-        bit_plane_metrics: Dict[str, Dict[int, float]] = {}
-        high_entropy_planes: List[Dict[str, str]] = []
+        bit_plane_metrics: dict[str, dict[int, float]] = {}
+        high_entropy_planes: list[dict[str, str]] = []
 
         for ch_name, ch_data in channels.items():
             bit_plane_metrics[ch_name] = {}
@@ -176,7 +178,7 @@ class ImageAnalyzer(BaseAnalyzer):
 
         return findings
 
-    def _inspect_png_chunks(self, data: bytes) -> List[FindingData]:
+    def _inspect_png_chunks(self, data: bytes) -> list[FindingData]:
         """Inspect PNG chunk signatures for anomalies or non-standard private chunks."""
         findings = []
         offset = 8  # Skip 8-byte PNG header

@@ -1,11 +1,14 @@
 """
 Health and readiness diagnostics endpoints for StegoSentinel.
 """
+
 import shutil
-from typing import Any, Dict
+from typing import Any
+
 from fastapi import APIRouter, Depends
 from sqlalchemy import text
 from sqlalchemy.orm import Session
+
 from app.core.config import settings
 from app.core.database import get_db
 from app.worker import get_redis_client
@@ -27,7 +30,7 @@ def liveness():
 @router.get("/ready")
 def readiness(db: Session = Depends(get_db)):
     """Readiness probe evaluating database, storage, redis, and tool capabilities."""
-    checks: Dict[str, Any] = {}
+    checks: dict[str, Any] = {}
 
     # Database check
     try:

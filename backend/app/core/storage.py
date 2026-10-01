@@ -2,29 +2,27 @@
 Quarantine storage abstraction for StegoSentinel.
 Enforces safe path resolution, strict permissions (0600), and non-executable storage.
 """
-from abc import ABC, abstractmethod
+
 import os
 import uuid
+from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Tuple
+
 from app.core.config import settings
 
 
 class StorageBackend(ABC):
     @abstractmethod
-    def store_file(self, content: bytes, filename: str) -> Tuple[str, str]:
+    def store_file(self, content: bytes, filename: str) -> tuple[str, str]:
         """Store bytes and return (storage_reference, relative_or_absolute_path)."""
-        pass
 
     @abstractmethod
     def read_file(self, storage_reference: str) -> bytes:
         """Read bytes by storage reference."""
-        pass
 
     @abstractmethod
     def get_path(self, storage_reference: str) -> Path:
         """Get filesystem path for analysis."""
-        pass
 
 
 class LocalStorageBackend(StorageBackend):
@@ -40,7 +38,7 @@ class LocalStorageBackend(StorageBackend):
             raise ValueError(f"Path traversal detected in storage reference: {storage_reference}")
         return target
 
-    def store_file(self, content: bytes, filename: str) -> Tuple[str, str]:
+    def store_file(self, content: bytes, filename: str) -> tuple[str, str]:
         # Generate random unique reference; never use original filename for storage path
         file_uuid = str(uuid.uuid4())
         target_path = self.base_dir / file_uuid

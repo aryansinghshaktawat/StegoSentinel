@@ -1,9 +1,12 @@
 """
 Reports API endpoints for StegoSentinel.
 """
+
 from typing import Optional
+
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.orm import Session
+
 from app.api.v1.analyses import verify_analysis_access
 from app.core.database import get_db
 from app.core.security import get_current_user_payload

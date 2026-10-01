@@ -3,11 +3,12 @@ Document forensic analyzer for StegoSentinel (PDF, DOCX, XLSX, PPTX).
 Safely inspects PDF dictionaries and streams, Office OOXML relationships,
 macros, and embedded payloads without executing scripts or macros.
 """
+
 import io
 import re
 import zipfile
-from typing import List
-from app.analyzers.base import BaseAnalyzer, AnalysisContext, FindingData
+
+from app.analyzers.base import AnalysisContext, BaseAnalyzer, FindingData
 
 
 class DocumentAnalyzer(BaseAnalyzer):
@@ -15,20 +16,19 @@ class DocumentAnalyzer(BaseAnalyzer):
     version = "1.0.0"
 
     def can_analyze(self, context: AnalysisContext) -> bool:
-        return (
-            context.mime_type == "application/pdf"
-            or context.filename.endswith((".pdf", ".docx", ".xlsx", ".pptx", ".doc", ".xls"))
+        return context.mime_type == "application/pdf" or context.filename.endswith(
+            (".pdf", ".docx", ".xlsx", ".pptx", ".doc", ".xls")
         )
 
-    def analyze(self, context: AnalysisContext) -> List[FindingData]:
-        findings: List[FindingData] = []
+    def analyze(self, context: AnalysisContext) -> list[FindingData]:
+        findings: list[FindingData] = []
         if context.mime_type == "application/pdf" or context.filename.endswith(".pdf"):
             findings.extend(self._analyze_pdf(context))
         elif context.filename.endswith((".docx", ".xlsx", ".pptx")):
             findings.extend(self._analyze_office_ooxml(context))
         return findings
 
-    def _analyze_pdf(self, context: AnalysisContext) -> List[FindingData]:
+    def _analyze_pdf(self, context: AnalysisContext) -> list[FindingData]:
         findings = []
         data = context.file_bytes
 
@@ -50,11 +50,31 @@ class DocumentAnalyzer(BaseAnalyzer):
 
         # Suspicious PDF objects scanner
         suspicious_tags = [
-            (rb"/JavaScript", "PDF_JAVASCRIPT_STREAM", "HIGH", "Contains embedded JavaScript object."),
+            (
+                rb"/JavaScript",
+                "PDF_JAVASCRIPT_STREAM",
+                "HIGH",
+                "Contains embedded JavaScript object.",
+            ),
             (rb"/JS", "PDF_JS_KEYWORD", "HIGH", "Contains /JS script reference."),
-            (rb"/Launch", "PDF_LAUNCH_ACTION", "CRITICAL", "Contains /Launch external execution action."),
-            (rb"/EmbeddedFiles", "PDF_EMBEDDED_FILES", "HIGH", "Contains embedded external file attachments."),
-            (rb"/OpenAction", "PDF_OPEN_ACTION", "MEDIUM", "Configured with automatic /OpenAction trigger."),
+            (
+                rb"/Launch",
+                "PDF_LAUNCH_ACTION",
+                "CRITICAL",
+                "Contains /Launch external execution action.",
+            ),
+            (
+                rb"/EmbeddedFiles",
+                "PDF_EMBEDDED_FILES",
+                "HIGH",
+                "Contains embedded external file attachments.",
+            ),
+            (
+                rb"/OpenAction",
+                "PDF_OPEN_ACTION",
+                "MEDIUM",
+                "Configured with automatic /OpenAction trigger.",
+            ),
         ]
 
         for tag, ftype, severity, desc in suspicious_tags:
@@ -74,7 +94,7 @@ class DocumentAnalyzer(BaseAnalyzer):
 
         return findings
 
-    def _analyze_office_ooxml(self, context: AnalysisContext) -> List[FindingData]:
+    def _analyze_office_ooxml(self, context: AnalysisContext) -> list[FindingData]:
         findings = []
         try:
             zf = zipfile.ZipFile(io.BytesIO(context.file_bytes))

@@ -1,25 +1,27 @@
 """
 Evidence hierarchy and artifact retrieval API endpoints for StegoSentinel.
 """
+
 import io
-from typing import Dict, List
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
+
 from app.api.v1.analyses import verify_analysis_access
 from app.core.database import get_db
 from app.core.security import get_current_user_payload
 from app.core.storage import storage
 from app.models.base import Analysis, EvidenceObject
-from app.schemas.evidence import EvidenceObjectRead, EvidenceTreeNode
+from app.schemas.evidence import EvidenceTreeNode
 
 router = APIRouter(tags=["Evidence"])
 
 
-def build_evidence_tree(objects: List[EvidenceObject]) -> List[EvidenceTreeNode]:
+def build_evidence_tree(objects: list[EvidenceObject]) -> list[EvidenceTreeNode]:
     """Assemble flat list of EvidenceObjects into a parent-child DAG."""
-    nodes: Dict[str, EvidenceTreeNode] = {}
-    roots: List[EvidenceTreeNode] = []
+    nodes: dict[str, EvidenceTreeNode] = {}
+    roots: list[EvidenceTreeNode] = []
 
     # First pass: Create all nodes
     for obj in objects:
@@ -51,7 +53,7 @@ def build_evidence_tree(objects: List[EvidenceObject]) -> List[EvidenceTreeNode]
     return roots
 
 
-@router.get("/analyses/{analysis_id}/evidence", response_model=List[EvidenceTreeNode])
+@router.get("/analyses/{analysis_id}/evidence", response_model=list[EvidenceTreeNode])
 def get_analysis_evidence_tree(
     analysis_id: str,
     db: Session = Depends(get_db),

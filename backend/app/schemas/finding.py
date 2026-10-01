@@ -1,5 +1,6 @@
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Any
+
 from pydantic import BaseModel, ConfigDict
 
 
@@ -8,7 +9,7 @@ class FindingBase(BaseModel):
     severity: str
     confidence: float
     description: str
-    evidence: Optional[Dict[str, Any]] = None
+    evidence: dict[str, Any] | None = None
     analyzer: str
     analyzer_version: str = "1.0.0"
 

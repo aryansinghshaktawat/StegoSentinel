@@ -1,8 +1,11 @@
 """
 Audit logging service for StegoSentinel chain of custody.
 """
-from typing import Any, Dict, Optional
+
+from typing import Any
+
 from sqlalchemy.orm import Session
+
 from app.models.base import AuditEvent
 
 
@@ -13,7 +16,7 @@ class AuditService:
         actor: str,
         action: str,
         object_id: str,
-        metadata: Optional[Dict[str, Any]] = None,
+        metadata: dict[str, Any] | None = None,
     ) -> AuditEvent:
         event = AuditEvent(
             actor=actor,

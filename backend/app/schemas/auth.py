@@ -1,11 +1,11 @@
 from datetime import datetime
-from typing import Optional
-from pydantic import BaseModel, EmailStr, ConfigDict
+
+from pydantic import BaseModel, ConfigDict
 
 
 class UserBase(BaseModel):
     username: str
-    email: EmailStr
+    email: str
     role: str = "ANALYST"
 
 
@@ -33,6 +33,6 @@ class Token(BaseModel):
 
 
 class TokenData(BaseModel):
-    sub: Optional[str] = None
-    username: Optional[str] = None
-    role: Optional[str] = None
+    sub: str | None = None
+    username: str | None = None
+    role: str | None = None

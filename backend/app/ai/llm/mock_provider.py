@@ -2,12 +2,14 @@
 Deterministic Mock LLM Provider for StegoSentinel.
 Produces defensible, rule-based forensic summaries and briefings offline without external API keys.
 """
-from typing import Any, Dict
+
+from typing import Any
+
 from app.ai.llm.provider import LLMProvider
 
 
 class MockLLMProvider(LLMProvider):
-    def generate_summary(self, evidence_summary: Dict[str, Any]) -> Dict[str, Any]:
+    def generate_summary(self, evidence_summary: dict[str, Any]) -> dict[str, Any]:
         filename = evidence_summary.get("original_filename", "unnamed_artifact")
         stego_likelihood = evidence_summary.get("stego_likelihood", 0.0)
         findings_count = len(evidence_summary.get("findings", []))
@@ -55,7 +57,7 @@ class MockLLMProvider(LLMProvider):
             ],
         }
 
-    def generate_markdown_report(self, evidence_summary: Dict[str, Any]) -> str:
+    def generate_markdown_report(self, evidence_summary: dict[str, Any]) -> str:
         summary_data = self.generate_summary(evidence_summary)
         filename = evidence_summary.get("original_filename", "Unknown")
         sha256 = evidence_summary.get("sha256", "Unknown")
@@ -68,7 +70,7 @@ class MockLLMProvider(LLMProvider):
         md = f"""# StegoSentinel Forensic Analysis Report
 
 ## 1. Executive Summary
-{summary_data['executive_summary']}
+{summary_data["executive_summary"]}
 
 - **Target File**: `{filename}`
 - **SHA-256 Digest**: `{sha256}`

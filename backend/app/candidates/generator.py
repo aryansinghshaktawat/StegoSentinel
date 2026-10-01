@@ -2,23 +2,26 @@
 Coarse-to-fine steganographic candidate generation engine for StegoSentinel.
 Systematically generates, filters, validates, and ranks extraction hypotheses.
 """
-from dataclasses import dataclass
+
 import io
-from typing import Any, Dict, List, Optional
+from dataclasses import dataclass
+from typing import Any
+
 import numpy as np
 from PIL import Image
+
 from app.ai.scorer import ranker
 from app.analyzers.base import AnalysisContext
 from app.candidates.search_space import CandidateParameters
 from app.core.limits import LIMITS
-from app.extraction.validators import validate_candidate_bytes, ValidationResult
+from app.extraction.validators import ValidationResult, validate_candidate_bytes
 
 
 @dataclass
 class CandidateResult:
     technique: str
-    parameters: Dict[str, Any]
-    feature_vector: Dict[str, float]
+    parameters: dict[str, Any]
+    feature_vector: dict[str, float]
     raw_score: float
     ml_score: float
     validation_score: float
@@ -101,9 +104,9 @@ class CandidateGenerator:
 
     def generate_candidates(
         self, context: AnalysisContext, budget: int = 100
-    ) -> List[CandidateResult]:
+    ) -> list[CandidateResult]:
         hard_limit = min(budget, context.max_candidates, LIMITS.MAX_CANDIDATES)
-        candidates: List[CandidateResult] = []
+        candidates: list[CandidateResult] = []
 
         if context.mime_type.startswith("image/"):
             candidates.extend(self._generate_image_candidates(context, hard_limit))
@@ -114,8 +117,8 @@ class CandidateGenerator:
 
     def _generate_image_candidates(
         self, context: AnalysisContext, hard_limit: int
-    ) -> List[CandidateResult]:
-        results: List[CandidateResult] = []
+    ) -> list[CandidateResult]:
+        results: list[CandidateResult] = []
         try:
             img = Image.open(io.BytesIO(context.file_bytes)).convert("RGB")
             img_arr = np.array(img)
@@ -164,7 +167,8 @@ class CandidateGenerator:
 
                         # Raw score based on printable ratio & entropy
                         raw_score = round(
-                            (val_res.printable_ratio * 0.7) + (0.3 if val_res.is_known_format else 0.0),
+                            (val_res.printable_ratio * 0.7)
+                            + (0.3 if val_res.is_known_format else 0.0),
                             4,
                         )
 

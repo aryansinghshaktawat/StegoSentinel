@@ -3,12 +3,13 @@ Asynchronous worker architecture for StegoSentinel.
 Supports Redis queue mode for containerized/multi-worker deployments,
 and thread/in-process background execution for zero-config local development and testing.
 """
+
 import logging
-import os
 import threading
 import time
-from typing import Optional
+
 import redis
+
 from app.core.config import settings
 from app.core.database import SessionLocal
 from app.services.analysis_service import analysis_service
@@ -18,7 +19,7 @@ logger = logging.getLogger(__name__)
 REDIS_QUEUE_KEY = "stegosentinel_analysis_queue"
 
 
-def get_redis_client() -> Optional[redis.Redis]:
+def get_redis_client() -> redis.Redis | None:
     """Obtain Redis client if available."""
     try:
         r = redis.Redis.from_url(settings.REDIS_URL, decode_responses=True)
@@ -36,7 +37,7 @@ def run_worker_task(analysis_id: str):
         analysis_service.execute_analysis(db, analysis_id)
         logger.info(f"Worker completed execution for analysis {analysis_id}")
     except Exception as e:
-        logger.error(f"Worker encountered failure on analysis {analysis_id}: {str(e)}")
+        logger.error(f"Worker encountered failure on analysis {analysis_id}: {e!s}")
     finally:
         db.close()
 
@@ -44,8 +45,22 @@ def run_worker_task(analysis_id: str):
 def dispatch_analysis_job(analysis_id: str):
     """
     Dispatch an analysis job.
-    Uses Redis if ASYNC_MODE=redis and available; otherwise uses background thread.
+    Uses Redis if ASYNC_MODE=redis and available;
+    Executes synchronously if ASYNC_MODE=sync;
+    Skips if ASYNC_MODE=manual (for test control);
+    Otherwise uses background thread.
     """
+    if settings.ASYNC_MODE == "manual":
+        logger.info(
+            f"Manual mode active: Analysis {analysis_id} dispatch deferred to test harness."
+        )
+        return
+
+    if settings.ASYNC_MODE == "sync":
+        logger.info(f"Sync mode active: Executing analysis {analysis_id} synchronously.")
+        run_worker_task(analysis_id)
+        return
+
     if settings.ASYNC_MODE == "redis":
         r = get_redis_client()
         if r:
@@ -76,7 +91,7 @@ def start_redis_worker_loop():
                 _, analysis_id = item
                 run_worker_task(analysis_id)
         except Exception as e:
-            logger.error(f"Worker error in Redis poll loop: {str(e)}")
+            logger.error(f"Worker error in Redis poll loop: {e!s}")
             time.sleep(2)
 
 

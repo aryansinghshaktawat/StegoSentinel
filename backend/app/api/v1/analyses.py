@@ -2,14 +2,14 @@
 Analysis management API endpoints for StegoSentinel.
 Enforces untrusted upload sanitization, quarantine isolation, and IDOR protection.
 """
+
 import hashlib
-import os
 from pathlib import Path
-from typing import List, Optional
+
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from sqlalchemy.orm import Session
+
 from app.analyzers.general import detect_magic
-from app.core.config import settings
 from app.core.database import get_db
 from app.core.limits import LIMITS
 from app.core.security import get_current_user_payload
@@ -102,7 +102,7 @@ async def create_analysis(
     return analysis
 
 
-@router.get("", response_model=List[AnalysisSummary])
+@router.get("", response_model=list[AnalysisSummary])
 def list_analyses(
     skip: int = 0,
     limit: int = 50,
@@ -113,7 +113,7 @@ def list_analyses(
     query = db.query(Analysis).order_by(Analysis.created_at.desc())
     if current_user.get("role") != "ADMIN":
         query = query.filter(
-            (Analysis.user_id == current_user.get("sub")) | (Analysis.user_id == None)  # noqa: E711
+            (Analysis.user_id == current_user.get("sub")) | (Analysis.user_id.is_(None))
         )
     return query.offset(skip).limit(limit).all()
 
@@ -152,4 +152,3 @@ def delete_analysis(
 
     db.delete(analysis)
     db.commit()
-    return None

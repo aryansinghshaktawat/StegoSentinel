@@ -2,9 +2,11 @@
 Core analysis orchestration service for StegoSentinel.
 Executes end-to-end pipeline from quarantine through recursive analysis and report generation.
 """
-from datetime import datetime, timezone
-from typing import Optional
+
+from datetime import UTC, datetime
+
 from sqlalchemy.orm import Session
+
 from app.core.storage import storage
 from app.extraction.recursion import RecursiveForensicEngine
 from app.models.base import Analysis
@@ -21,7 +23,7 @@ class AnalysisService:
 
         # Update status to RUNNING
         analysis.status = "RUNNING"
-        analysis.started_at = datetime.now(timezone.utc)
+        analysis.started_at = datetime.now(UTC)
         db.commit()
 
         audit_service.log_event(
@@ -53,7 +55,7 @@ class AnalysisService:
 
             # Mark as COMPLETED
             analysis.status = "COMPLETED"
-            analysis.completed_at = datetime.now(timezone.utc)
+            analysis.completed_at = datetime.now(UTC)
             db.commit()
 
             audit_service.log_event(
@@ -70,7 +72,7 @@ class AnalysisService:
 
         except Exception as e:
             analysis.status = "FAILED"
-            analysis.completed_at = datetime.now(timezone.utc)
+            analysis.completed_at = datetime.now(UTC)
             analysis.error_message = str(e)
             db.commit()
 

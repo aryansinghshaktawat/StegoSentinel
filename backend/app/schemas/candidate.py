@@ -1,19 +1,20 @@
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Any
+
 from pydantic import BaseModel, ConfigDict
 
 
 class CandidateBase(BaseModel):
     technique: str
-    parameters: Dict[str, Any]
-    feature_vector: Optional[Dict[str, Any]] = None
+    parameters: dict[str, Any]
+    feature_vector: dict[str, Any] | None = None
     raw_score: float = 0.0
     ml_score: float = 0.0
     validation_score: float = 0.0
     final_score: float = 0.0
     status: str = "UNKNOWN"
-    extracted_type: Optional[str] = None
-    printable_ratio: Optional[float] = None
+    extracted_type: str | None = None
+    printable_ratio: float | None = None
 
 
 class CandidateCreate(CandidateBase):

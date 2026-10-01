@@ -1,8 +1,9 @@
 """
 Steganographic hypothesis parameter definitions for StegoSentinel.
 """
+
 from dataclasses import dataclass
-from typing import Any, Dict
+from typing import Any
 
 
 @dataclass(frozen=True)
@@ -13,7 +14,7 @@ class CandidateParameters:
     stride: int  # 1, 2, 4
     endian: str  # "msb_first" or "lsb_first"
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "channel": self.channel,
             "bit_plane": self.bit_plane,

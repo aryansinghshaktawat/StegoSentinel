@@ -3,18 +3,21 @@ Recursive payload extraction and evidence DAG management for StegoSentinel.
 Safely extracts embedded payloads, saves them to quarantine, and recursively
 analyzes child artifacts up to hard depth and count budgets.
 """
-from dataclasses import dataclass
+
 import hashlib
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Any
+
 from sqlalchemy.orm import Session
+
 from app.analyzers import run_all_analyzers
 from app.analyzers.base import AnalysisContext, FindingData
 from app.analyzers.general import detect_magic
 from app.candidates.generator import CandidateResult, candidate_generator
 from app.core.limits import LIMITS
 from app.core.storage import storage
-from app.models.base import Analysis, EvidenceObject, Finding, Candidate
+from app.models.base import Analysis, Candidate, EvidenceObject, Finding
 
 
 @dataclass
@@ -38,7 +41,7 @@ class RecursiveForensicEngine:
         self,
         file_bytes: bytes,
         filename: str,
-        parent_id: Optional[str] = None,
+        parent_id: str | None = None,
         depth: int = 0,
         extraction_method: str = "ORIGINAL_UPLOAD",
         source_offset: int = 0,
@@ -79,7 +82,7 @@ class RecursiveForensicEngine:
         )
 
         # 1. Run all compatible forensic analyzers
-        findings: List[FindingData] = run_all_analyzers(context)
+        findings: list[FindingData] = run_all_analyzers(context)
         for f in findings:
             db_finding = Finding(
                 analysis_id=self.analysis.id,
@@ -94,7 +97,7 @@ class RecursiveForensicEngine:
             self.db.add(db_finding)
 
         # 2. Run candidate generation if image or media format
-        candidates: List[CandidateResult] = []
+        candidates: list[CandidateResult] = []
         if depth == 0 or detected_mime.startswith("image/"):
             candidates = candidate_generator.generate_candidates(context)
             for c in candidates:
@@ -120,7 +123,7 @@ class RecursiveForensicEngine:
             return evidence_obj
 
         # 3. Identify child payloads for safe recursive extraction
-        children_to_extract: List[ExtractionNode] = []
+        children_to_extract: list[ExtractionNode] = []
 
         # A. Trailing overlay data (if detected by general analyzer)
         if "trailing_data" in context.metadata:
@@ -138,7 +141,7 @@ class RecursiveForensicEngine:
 
         # B. Archive members (if safely unpacked by ArchiveAnalyzer)
         if "extracted_archive_members" in context.metadata:
-            members: List[Tuple[Any, bytes]] = context.metadata["extracted_archive_members"]
+            members: list[tuple[Any, bytes]] = context.metadata["extracted_archive_members"]
             for info, member_data in members:
                 children_to_extract.append(
                     ExtractionNode(
@@ -172,10 +175,7 @@ class RecursiveForensicEngine:
         for child in children_to_extract:
             if self.total_extracted_objects >= LIMITS.MAX_EXTRACTED_OBJECTS:
                 break
-            if (
-                self.cumulative_extracted_bytes + len(child.data)
-                > LIMITS.MAX_TOTAL_EXTRACTED_SIZE
-            ):
+            if self.cumulative_extracted_bytes + len(child.data) > LIMITS.MAX_TOTAL_EXTRACTED_SIZE:
                 break
 
             self.total_extracted_objects += 1

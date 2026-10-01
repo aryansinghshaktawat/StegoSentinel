@@ -2,11 +2,11 @@
 External forensic tool wrappers for StegoSentinel.
 Wraps exiftool, zsteg, steghide, and binwalk with defensive execution and graceful fallbacks.
 """
+
 import shutil
 import subprocess
-from pathlib import Path
-from typing import List
-from app.analyzers.base import BaseAnalyzer, AnalysisContext, FindingData
+
+from app.analyzers.base import AnalysisContext, BaseAnalyzer, FindingData
 
 
 class ExternalToolWrapper(BaseAnalyzer):
@@ -15,7 +15,7 @@ class ExternalToolWrapper(BaseAnalyzer):
     def is_available(self) -> bool:
         return bool(shutil.which(self.tool_binary))
 
-    def run_command(self, args: List[str], timeout: int = 15) -> str:
+    def run_command(self, args: list[str], timeout: int = 15) -> str:
         """Execute command safely without shell=True."""
         cmd = [self.tool_binary] + args
         try:
@@ -28,7 +28,7 @@ class ExternalToolWrapper(BaseAnalyzer):
             )
             return res.stdout[:32768]  # Bound output to 32KB
         except Exception as e:
-            return f"ERROR: {str(e)}"
+            return f"ERROR: {e!s}"
 
 
 class ExifToolWrapper(ExternalToolWrapper):
@@ -42,7 +42,7 @@ class ExifToolWrapper(ExternalToolWrapper):
             "audio/wav",
         ]
 
-    def analyze(self, context: AnalysisContext) -> List[FindingData]:
+    def analyze(self, context: AnalysisContext) -> list[FindingData]:
         if not self.is_available():
             return [
                 FindingData(
@@ -78,7 +78,7 @@ class ZstegWrapper(ExternalToolWrapper):
     def can_analyze(self, context: AnalysisContext) -> bool:
         return context.mime_type in ["image/png", "image/bmp"]
 
-    def analyze(self, context: AnalysisContext) -> List[FindingData]:
+    def analyze(self, context: AnalysisContext) -> list[FindingData]:
         if not self.is_available():
             return [
                 FindingData(
@@ -118,7 +118,7 @@ class SteghideWrapper(ExternalToolWrapper):
     def can_analyze(self, context: AnalysisContext) -> bool:
         return context.mime_type in ["image/jpeg", "image/bmp", "audio/wav"]
 
-    def analyze(self, context: AnalysisContext) -> List[FindingData]:
+    def analyze(self, context: AnalysisContext) -> list[FindingData]:
         if not self.is_available():
             return [
                 FindingData(
@@ -154,7 +154,7 @@ class BinwalkWrapper(ExternalToolWrapper):
     def can_analyze(self, context: AnalysisContext) -> bool:
         return True  # Can scan any binary
 
-    def analyze(self, context: AnalysisContext) -> List[FindingData]:
+    def analyze(self, context: AnalysisContext) -> list[FindingData]:
         if not self.is_available():
             return [
                 FindingData(

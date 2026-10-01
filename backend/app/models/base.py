@@ -1,20 +1,23 @@
 """
 SQLAlchemy models for StegoSentinel forensics platform.
 """
-from datetime import datetime, timezone
+
 import uuid
+from datetime import UTC, datetime
+
 from sqlalchemy import (
-    Column,
-    String,
-    Integer,
-    Float,
-    Boolean,
-    DateTime,
-    Text,
-    ForeignKey,
     JSON,
+    Boolean,
+    Column,
+    DateTime,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
 )
 from sqlalchemy.orm import relationship
+
 from app.core.database import Base
 
 
@@ -23,7 +26,7 @@ def generate_uuid() -> str:
 
 
 def utc_now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 class User(Base):
@@ -75,8 +78,12 @@ class Finding(Base):
 
     id = Column(String(36), primary_key=True, default=generate_uuid)
     analysis_id = Column(String(36), ForeignKey("analyses.id"), index=True, nullable=False)
-    type = Column(String(64), index=True, nullable=False)  # e.g. LSB_ENTROPY_ANOMALY, ZERO_WIDTH_CHARS
-    severity = Column(String(32), default="MEDIUM", nullable=False)  # INFO, LOW, MEDIUM, HIGH, CRITICAL
+    type = Column(
+        String(64), index=True, nullable=False
+    )  # e.g. LSB_ENTROPY_ANOMALY, ZERO_WIDTH_CHARS
+    severity = Column(
+        String(32), default="MEDIUM", nullable=False
+    )  # INFO, LOW, MEDIUM, HIGH, CRITICAL
     confidence = Column(Float, default=0.5, nullable=False)  # 0.0 to 1.0
     description = Column(Text, nullable=False)
     evidence = Column(JSON, nullable=True)  # Structured evidence dictionary
@@ -93,13 +100,17 @@ class Candidate(Base):
     id = Column(String(36), primary_key=True, default=generate_uuid)
     analysis_id = Column(String(36), ForeignKey("analyses.id"), index=True, nullable=False)
     technique = Column(String(64), nullable=False)  # e.g. LSB_SEQUENTIAL, LSB_INTERLEAVED
-    parameters = Column(JSON, nullable=False)  # {channel: "RGB", bit_plane: 0, order: "seq", stride: 1}
+    parameters = Column(
+        JSON, nullable=False
+    )  # {channel: "RGB", bit_plane: 0, order: "seq", stride: 1}
     feature_vector = Column(JSON, nullable=True)  # {entropy: 5.7, printable_ratio: 0.96, ...}
     raw_score = Column(Float, default=0.0, nullable=False)
     ml_score = Column(Float, default=0.0, nullable=False)
     validation_score = Column(Float, default=0.0, nullable=False)
     final_score = Column(Float, default=0.0, index=True, nullable=False)
-    status = Column(String(32), default="UNKNOWN", nullable=False)  # VALID, PARTIAL, INVALID, UNKNOWN
+    status = Column(
+        String(32), default="UNKNOWN", nullable=False
+    )  # VALID, PARTIAL, INVALID, UNKNOWN
     extracted_type = Column(String(64), nullable=True)
     printable_ratio = Column(Float, nullable=True)
     created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)

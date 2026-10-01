@@ -3,15 +3,16 @@ General forensic analyzer for StegoSentinel.
 Performs cryptographic hashing, magic-byte MIME identification, extension mismatch detection,
 Shannon entropy calculation, printable character ratio, string extraction, and trailing data detection.
 """
+
 import hashlib
 import math
 import re
 from pathlib import Path
-from typing import Dict, List, Tuple
-from app.analyzers.base import BaseAnalyzer, AnalysisContext, FindingData
+
+from app.analyzers.base import AnalysisContext, BaseAnalyzer, FindingData
 
 # Comprehensive magic byte signatures table
-MAGIC_SIGNATURES: List[Tuple[bytes, int, str, str]] = [
+MAGIC_SIGNATURES: list[tuple[bytes, int, str, str]] = [
     # (magic_bytes, offset, mime_type, standard_extension)
     (b"\x89PNG\r\n\x1a\n", 0, "image/png", ".png"),
     (b"BM", 0, "image/bmp", ".bmp"),
@@ -28,7 +29,7 @@ MAGIC_SIGNATURES: List[Tuple[bytes, int, str, str]] = [
 ]
 
 
-def detect_magic(data: bytes, filename: str) -> Tuple[str, str, bool]:
+def detect_magic(data: bytes, filename: str) -> tuple[str, str, bool]:
     """
     Detect actual MIME type and extension from magic bytes.
     Returns: (detected_mime, expected_ext, is_mismatch)
@@ -72,7 +73,7 @@ def calculate_entropy(data: bytes) -> float:
     """Calculate Shannon entropy in bits per byte (range 0.0 - 8.0)."""
     if not data:
         return 0.0
-    freq: Dict[int, int] = {}
+    freq: dict[int, int] = {}
     for byte in data:
         freq[byte] = freq.get(byte, 0) + 1
 
@@ -84,7 +85,9 @@ def calculate_entropy(data: bytes) -> float:
     return round(entropy, 4)
 
 
-def calculate_sliding_window_entropy(data: bytes, window_size: int = 512, step: int = 256) -> List[float]:
+def calculate_sliding_window_entropy(
+    data: bytes, window_size: int = 512, step: int = 256
+) -> list[float]:
     """Calculate entropy across sliding windows to detect localized injected data."""
     if len(data) < window_size:
         return [calculate_entropy(data)]
@@ -95,7 +98,7 @@ def calculate_sliding_window_entropy(data: bytes, window_size: int = 512, step: 
     return entropies
 
 
-def extract_strings_and_ratios(data: bytes, min_len: int = 4) -> Tuple[float, float, List[str]]:
+def extract_strings_and_ratios(data: bytes, min_len: int = 4) -> tuple[float, float, list[str]]:
     """
     Calculate printable character ratio, null byte ratio, and extract ASCII strings.
     """
@@ -120,7 +123,7 @@ def extract_strings_and_ratios(data: bytes, min_len: int = 4) -> Tuple[float, fl
     return printable_ratio, null_ratio, matches[:50]
 
 
-def detect_trailing_data(data: bytes, mime_type: str) -> Tuple[bool, int, bytes]:
+def detect_trailing_data(data: bytes, mime_type: str) -> tuple[bool, int, bytes]:
     """
     Detect appended overlay data past format end-of-file markers.
     Returns (has_trailing_data, offset, trailing_bytes).
@@ -148,8 +151,8 @@ class GeneralForensicAnalyzer(BaseAnalyzer):
     def can_analyze(self, context: AnalysisContext) -> bool:
         return True  # Applies to all files
 
-    def analyze(self, context: AnalysisContext) -> List[FindingData]:
-        findings: List[FindingData] = []
+    def analyze(self, context: AnalysisContext) -> list[FindingData]:
+        findings: list[FindingData] = []
         data = context.file_bytes
 
         # 1. Cryptographic Hashes
@@ -226,7 +229,9 @@ class GeneralForensicAnalyzer(BaseAnalyzer):
             desc = f"Extremely high Shannon entropy ({entropy:.4f}/8.0). High probability of encryption or compressed/encrypted stego payload."
         elif entropy > 7.5:
             entropy_severity = "MEDIUM"
-            desc = f"High Shannon entropy ({entropy:.4f}/8.0). Indicates compressed or packed content."
+            desc = (
+                f"High Shannon entropy ({entropy:.4f}/8.0). Indicates compressed or packed content."
+            )
         else:
             desc = f"Measured standard Shannon entropy of {entropy:.4f}/8.0."
 

@@ -3,9 +3,10 @@ Text steganalysis engine for StegoSentinel.
 Detects zero-width Unicode characters, bidirectional control markers,
 whitespace steganography (SNOW), and encoded blobs.
 """
+
 import re
-from typing import Dict, List
-from app.analyzers.base import BaseAnalyzer, AnalysisContext, FindingData
+
+from app.analyzers.base import AnalysisContext, BaseAnalyzer, FindingData
 
 
 class TextAnalyzer(BaseAnalyzer):
@@ -41,8 +42,8 @@ class TextAnalyzer(BaseAnalyzer):
             (".txt", ".md", ".csv", ".json", ".xml", ".html", ".log")
         )
 
-    def analyze(self, context: AnalysisContext) -> List[FindingData]:
-        findings: List[FindingData] = []
+    def analyze(self, context: AnalysisContext) -> list[FindingData]:
+        findings: list[FindingData] = []
         try:
             text = context.file_bytes.decode("utf-8", errors="replace")
         except Exception as e:
@@ -51,7 +52,7 @@ class TextAnalyzer(BaseAnalyzer):
                     type="TEXT_DECODE_ERROR",
                     severity="LOW",
                     confidence=0.8,
-                    description=f"Could not decode text stream: {str(e)}",
+                    description=f"Could not decode text stream: {e!s}",
                     analyzer=self.name,
                     analyzer_version=self.version,
                 )
@@ -59,7 +60,7 @@ class TextAnalyzer(BaseAnalyzer):
             return findings
 
         # 1. Zero-Width Character Detection
-        zw_counts: Dict[str, int] = {}
+        zw_counts: dict[str, int] = {}
         for char, name in self.ZERO_WIDTH_CHARS.items():
             cnt = text.count(char)
             if cnt > 0:
@@ -90,7 +91,7 @@ class TextAnalyzer(BaseAnalyzer):
             )
 
         # 2. Bidirectional Control Markers Detection
-        bidi_counts: Dict[str, int] = {}
+        bidi_counts: dict[str, int] = {}
         for char, name in self.BIDI_CHARS.items():
             cnt = text.count(char)
             if cnt > 0:
@@ -141,7 +142,9 @@ class TextAnalyzer(BaseAnalyzer):
             )
 
         # 4. Base64 & Hex Blobs Detection
-        b64_pattern = re.compile(r"(?:[A-Za-z0-9+/]{4}){8,}(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?")
+        b64_pattern = re.compile(
+            r"(?:[A-Za-z0-9+/]{4}){8,}(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?"
+        )
         b64_matches = b64_pattern.findall(text)
         if b64_matches:
             findings.append(
@@ -159,7 +162,7 @@ class TextAnalyzer(BaseAnalyzer):
         return findings
 
     def _attempt_zw_decode(self, text: str) -> str:
-        """Attempt to decode binary stream encoded with \u200B (0) and \u200C (1)."""
+        """Attempt to decode binary stream encoded with \u200b (0) and \u200c (1)."""
         bits = []
         for ch in text:
             if ch == "\u200b":

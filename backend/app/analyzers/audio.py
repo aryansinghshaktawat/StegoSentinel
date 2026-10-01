@@ -2,11 +2,13 @@
 Audio forensic analyzer for StegoSentinel.
 Parses WAV PCM streams, inspects RIFF structures, and extracts sample-level LSB features.
 """
+
 import io
 import wave
-from typing import List
+
 import numpy as np
-from app.analyzers.base import BaseAnalyzer, AnalysisContext, FindingData
+
+from app.analyzers.base import AnalysisContext, BaseAnalyzer, FindingData
 from app.analyzers.general import calculate_entropy
 
 
@@ -15,10 +17,12 @@ class AudioAnalyzer(BaseAnalyzer):
     version = "1.0.0"
 
     def can_analyze(self, context: AnalysisContext) -> bool:
-        return context.mime_type in ["audio/wav", "audio/x-wav"] or context.filename.endswith(".wav")
+        return context.mime_type in ["audio/wav", "audio/x-wav"] or context.filename.endswith(
+            ".wav"
+        )
 
-    def analyze(self, context: AnalysisContext) -> List[FindingData]:
-        findings: List[FindingData] = []
+    def analyze(self, context: AnalysisContext) -> list[FindingData]:
+        findings: list[FindingData] = []
         try:
             with wave.open(io.BytesIO(context.file_bytes), "rb") as wf:
                 channels = wf.getnchannels()
@@ -32,7 +36,7 @@ class AudioAnalyzer(BaseAnalyzer):
                     type="AUDIO_DECODE_ERROR",
                     severity="LOW",
                     confidence=0.8,
-                    description=f"Could not parse WAV container: {str(e)}",
+                    description=f"Could not parse WAV container: {e!s}",
                     analyzer=self.name,
                     analyzer_version=self.version,
                 )

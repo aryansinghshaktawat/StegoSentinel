@@ -2,6 +2,7 @@
 Hard limits and forensic boundaries for StegoSentinel.
 Guards against algorithmic DoS, decompression bombs, and excessive recursion.
 """
+
 from dataclasses import dataclass
 
 

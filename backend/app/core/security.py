@@ -2,15 +2,18 @@
 Security and authentication utilities for StegoSentinel.
 Implements PBKDF2 password hashing, JWT generation/verification, and RBAC primitives.
 """
+
 import hashlib
 import hmac
 import os
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from enum import Enum
-from typing import Optional, Dict, Any
+from typing import Any
+
 import jwt
-from fastapi import HTTPException, status, Depends
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi import Depends, HTTPException, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+
 from app.core.config import settings
 
 
@@ -42,59 +45,51 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
         return False
 
 
-def create_access_token(data: Dict[str, Any], expires_delta: Optional[timedelta] = None) -> str:
+def create_access_token(data: dict[str, Any], expires_delta: timedelta | None = None) -> str:
     """Generate signed JWT token."""
     to_encode = data.copy()
-    expire = datetime.now(timezone.utc) + (
+    expire = datetime.now(UTC) + (
         expires_delta or timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     )
     to_encode.update({"exp": expire})
     return jwt.encode(to_encode, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
 
 
-def decode_access_token(token: str) -> Dict[str, Any]:
+def decode_access_token(token: str) -> dict[str, Any]:
     """Decode and validate JWT token."""
     try:
-        payload = jwt.decode(
-            token,
-            settings.JWT_SECRET_KEY,
-            algorithms=[settings.JWT_ALGORITHM]
-        )
+        payload = jwt.decode(token, settings.JWT_SECRET_KEY, algorithms=[settings.JWT_ALGORITHM])
         return payload
     except jwt.ExpiredSignatureError:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Authentication token has expired"
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication token has expired"
         )
     except jwt.InvalidTokenError:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid authentication token"
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid authentication token"
         )
 
 
 def get_current_user_payload(
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security_scheme)
-) -> Dict[str, Any]:
+    credentials: HTTPAuthorizationCredentials | None = Depends(security_scheme),
+) -> dict[str, Any]:
     """FastAPI dependency to retrieve and validate token payload."""
     if not credentials:
         # Default mock user for development when no auth token passed
-        return {
-            "sub": "usr_dev_analyst",
-            "username": "analyst",
-            "role": Role.ANALYST.value
-        }
+        return {"sub": "usr_dev_analyst", "username": "analyst", "role": Role.ANALYST.value}
     return decode_access_token(credentials.credentials)
 
 
 def require_role(*allowed_roles: Role):
     """Enforce role-based access control at route level."""
-    def role_checker(payload: Dict[str, Any] = Depends(get_current_user_payload)) -> Dict[str, Any]:
+
+    def role_checker(payload: dict[str, Any] = Depends(get_current_user_payload)) -> dict[str, Any]:
         user_role = payload.get("role", Role.VIEWER.value)
         if user_role not in [r.value for r in allowed_roles]:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"Access denied: Requires one of {[r.value for r in allowed_roles]}"
+                detail=f"Access denied: Requires one of {[r.value for r in allowed_roles]}",
             )
         return payload
+
     return role_checker

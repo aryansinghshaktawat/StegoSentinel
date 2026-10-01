@@ -1,9 +1,11 @@
 """
 Candidates API endpoints for StegoSentinel.
 """
-from typing import List
+
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
+
 from app.api.v1.analyses import verify_analysis_access
 from app.core.database import get_db
 from app.core.security import get_current_user_payload
@@ -13,7 +15,7 @@ from app.schemas.candidate import CandidateRead
 router = APIRouter(prefix="/analyses/{analysis_id}/candidates", tags=["Candidates"])
 
 
-@router.get("", response_model=List[CandidateRead])
+@router.get("", response_model=list[CandidateRead])
 def get_analysis_candidates(
     analysis_id: str,
     db: Session = Depends(get_db),

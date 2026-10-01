@@ -1,9 +1,12 @@
 """
 Audit events API endpoints for StegoSentinel.
 """
-from typing import Any, Dict, List
+
+from typing import Any
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
+
 from app.api.v1.analyses import verify_analysis_access
 from app.core.database import get_db
 from app.core.security import get_current_user_payload
@@ -12,7 +15,7 @@ from app.models.base import Analysis, AuditEvent
 router = APIRouter(prefix="/analyses/{analysis_id}/events", tags=["Audit Events"])
 
 
-@router.get("", response_model=List[Dict[str, Any]])
+@router.get("", response_model=list[dict[str, Any]])
 def get_analysis_audit_events(
     analysis_id: str,
     db: Session = Depends(get_db),

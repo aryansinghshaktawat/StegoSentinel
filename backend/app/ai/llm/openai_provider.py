@@ -3,12 +3,14 @@ OpenAI & Generic HTTP LLM Provider for StegoSentinel.
 Wraps external LLM APIs with strict prompt injection boundaries.
 Falls back to MockLLMProvider when unconfigured.
 """
+
 import json
-from typing import Any, Dict
+from typing import Any
+
 import httpx
+
 from app.ai.llm.mock_provider import MockLLMProvider
 from app.ai.llm.provider import LLMProvider
-from app.core.config import settings
 
 
 class OpenAIProvider(LLMProvider):
@@ -17,7 +19,7 @@ class OpenAIProvider(LLMProvider):
         self.model = model
         self.mock_fallback = MockLLMProvider()
 
-    def generate_summary(self, evidence_summary: Dict[str, Any]) -> Dict[str, Any]:
+    def generate_summary(self, evidence_summary: dict[str, Any]) -> dict[str, Any]:
         if not self.api_key:
             return self.mock_fallback.generate_summary(evidence_summary)
 
@@ -42,7 +44,10 @@ class OpenAIProvider(LLMProvider):
                     json={
                         "model": self.model,
                         "messages": [
-                            {"role": "system", "content": "You are a professional DFIR reporting assistant."},
+                            {
+                                "role": "system",
+                                "content": "You are a professional DFIR reporting assistant.",
+                            },
                             {"role": "user", "content": prompt},
                         ],
                         "response_format": {"type": "json_object"},
@@ -56,5 +61,5 @@ class OpenAIProvider(LLMProvider):
 
         return self.mock_fallback.generate_summary(evidence_summary)
 
-    def generate_markdown_report(self, evidence_summary: Dict[str, Any]) -> str:
+    def generate_markdown_report(self, evidence_summary: dict[str, Any]) -> str:
         return self.mock_fallback.generate_markdown_report(evidence_summary)

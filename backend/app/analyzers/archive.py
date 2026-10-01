@@ -3,12 +3,12 @@ Safe archive forensic analyzer and unpacker for StegoSentinel.
 Implements Zip Slip path traversal defense, decompression bomb detection,
 symlink neutralizing, and child evidence object extraction.
 """
+
 import io
 import os
-from pathlib import Path
-from typing import List, Tuple
 import zipfile
-from app.analyzers.base import BaseAnalyzer, AnalysisContext, FindingData
+
+from app.analyzers.base import AnalysisContext, BaseAnalyzer, FindingData
 from app.core.limits import LIMITS
 
 
@@ -17,13 +17,13 @@ class ArchiveAnalyzer(BaseAnalyzer):
     version = "1.0.0"
 
     def can_analyze(self, context: AnalysisContext) -> bool:
-        return (
-            context.mime_type in ["application/zip", "application/x-zip-compressed"]
-            or context.filename.endswith(".zip")
-        )
+        return context.mime_type in [
+            "application/zip",
+            "application/x-zip-compressed",
+        ] or context.filename.endswith(".zip")
 
-    def analyze(self, context: AnalysisContext) -> List[FindingData]:
-        findings: List[FindingData] = []
+    def analyze(self, context: AnalysisContext) -> list[FindingData]:
+        findings: list[FindingData] = []
         try:
             zf = zipfile.ZipFile(io.BytesIO(context.file_bytes))
         except zipfile.BadZipFile as e:
@@ -32,7 +32,7 @@ class ArchiveAnalyzer(BaseAnalyzer):
                     type="MALFORMED_ZIP_ARCHIVE",
                     severity="MEDIUM",
                     confidence=0.9,
-                    description=f"Malformed or corrupted ZIP file structure: {str(e)}",
+                    description=f"Malformed or corrupted ZIP file structure: {e!s}",
                     analyzer=self.name,
                     analyzer_version=self.version,
                 )
@@ -87,7 +87,7 @@ class ArchiveAnalyzer(BaseAnalyzer):
 
         # 3. Path Traversal (Zip Slip) & Symlink Check
         suspicious_paths = []
-        safe_extractable_entries: List[Tuple[zipfile.ZipInfo, bytes]] = []
+        safe_extractable_entries: list[tuple[zipfile.ZipInfo, bytes]] = []
 
         cumulative_extracted_size = 0
         extracted_count = 0
@@ -165,7 +165,7 @@ class ArchiveAnalyzer(BaseAnalyzer):
                             type="ARCHIVE_ENTRY_READ_ERROR",
                             severity="LOW",
                             confidence=0.8,
-                            description=f"Failed to read entry {raw_name}: {str(e)}",
+                            description=f"Failed to read entry {raw_name}: {e!s}",
                             analyzer=self.name,
                             analyzer_version=self.version,
                         )

@@ -1,9 +1,11 @@
 """
 Findings API endpoints for StegoSentinel.
 """
-from typing import List
+
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
+
 from app.api.v1.analyses import verify_analysis_access
 from app.core.database import get_db
 from app.core.security import get_current_user_payload
@@ -13,7 +15,7 @@ from app.schemas.finding import FindingRead
 router = APIRouter(prefix="/analyses/{analysis_id}/findings", tags=["Findings"])
 
 
-@router.get("", response_model=List[FindingRead])
+@router.get("", response_model=list[FindingRead])
 def get_analysis_findings(
     analysis_id: str,
     db: Session = Depends(get_db),

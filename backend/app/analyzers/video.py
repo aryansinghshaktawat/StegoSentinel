@@ -3,9 +3,8 @@ Video container forensic analyzer for StegoSentinel.
 Parses MP4/MKV container metadata, audio/subtitle stream descriptors,
 and exposes keyframe sampling hooks for forwarding sampled frames to ImageAnalyzer.
 """
-import re
-from typing import List
-from app.analyzers.base import BaseAnalyzer, AnalysisContext, FindingData
+
+from app.analyzers.base import AnalysisContext, BaseAnalyzer, FindingData
 
 
 class VideoAnalyzer(BaseAnalyzer):
@@ -13,13 +12,12 @@ class VideoAnalyzer(BaseAnalyzer):
     version = "1.0.0"
 
     def can_analyze(self, context: AnalysisContext) -> bool:
-        return (
-            context.mime_type.startswith("video/")
-            or context.filename.endswith((".mp4", ".mkv", ".avi", ".mov"))
+        return context.mime_type.startswith("video/") or context.filename.endswith(
+            (".mp4", ".mkv", ".avi", ".mov")
         )
 
-    def analyze(self, context: AnalysisContext) -> List[FindingData]:
-        findings: List[FindingData] = []
+    def analyze(self, context: AnalysisContext) -> list[FindingData]:
+        findings: list[FindingData] = []
         data = context.file_bytes
 
         # Basic container signature detection

@@ -2,12 +2,13 @@
 Feature extraction vector for StegoSentinel candidate ranking.
 Extracts 8-dimensional statistical and structural features from candidate bitstreams.
 """
-from typing import Any, Dict
+
 import numpy as np
-from app.analyzers.general import calculate_entropy, extract_strings_and_ratios, MAGIC_SIGNATURES
+
+from app.analyzers.general import MAGIC_SIGNATURES, calculate_entropy, extract_strings_and_ratios
 
 
-def extract_candidate_features(data: bytes, chi_square_p: float = 0.5) -> Dict[str, float]:
+def extract_candidate_features(data: bytes, chi_square_p: float = 0.5) -> dict[str, float]:
     """Extract tabular feature vector from extracted candidate bytes."""
     if not data:
         return {
@@ -22,6 +23,13 @@ def extract_candidate_features(data: bytes, chi_square_p: float = 0.5) -> Dict[s
         }
 
     sample = data[:2048]
+    first_null = data.find(b"\x00")
+    if first_null != -1 and first_null >= 6:
+        prefix = data[:first_null]
+        p_pref, _, _ = extract_strings_and_ratios(prefix)
+        if p_pref >= 0.80:
+            sample = prefix
+
     entropy = calculate_entropy(sample)
     printable_ratio, null_ratio, _ = extract_strings_and_ratios(sample)
 
@@ -46,7 +54,9 @@ def extract_candidate_features(data: bytes, chi_square_p: float = 0.5) -> Dict[s
     repetition_rate = round(float(np.mean(diffs == 0)), 4) if len(diffs) > 0 else 0.0
 
     # Compression header indicator (Deflate, gzip, zlib, zip)
-    compression = 1.0 if sample.startswith((b"\x1f\x8b", b"\x78\x9c", b"\x78\x01", b"PK\x03\x04")) else 0.0
+    compression = (
+        1.0 if sample.startswith((b"\x1f\x8b", b"\x78\x9c", b"\x78\x01", b"PK\x03\x04")) else 0.0
+    )
 
     return {
         "shannon_entropy": round(entropy, 4),

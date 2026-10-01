@@ -3,14 +3,17 @@ Forensic report compilation and calibration engine for StegoSentinel.
 Synthesizes findings, candidates, and recursive evidence into defensible
 JSON and Markdown forensic reports.
 """
-from typing import Any, Dict, List
+
+from typing import Any
+
 from sqlalchemy.orm import Session
+
 from app.ai.llm import get_llm_provider
 from app.models.base import Analysis, Candidate, EvidenceObject, Finding, LLMReport
 
 
 def calculate_overall_stego_likelihood(
-    findings: List[Finding], candidates: List[Candidate], entropy: float = 0.0
+    findings: list[Finding], candidates: list[Candidate], entropy: float = 0.0
 ) -> float:
     """
     Calculate calibrated stego likelihood (0.0 to 1.0) using deterministic evidence hierarchy.
@@ -34,7 +37,11 @@ def calculate_overall_stego_likelihood(
 
     # Chi-square or entropy anomalies
     for f in findings:
-        if f.type in ["CHI_SQUARE_LSB_ANOMALY", "ZERO_WIDTH_UNICODE_STEGANOGRAPHY", "TRAILING_DATA_OVERLAY"]:
+        if f.type in [
+            "CHI_SQUARE_LSB_ANOMALY",
+            "ZERO_WIDTH_UNICODE_STEGANOGRAPHY",
+            "TRAILING_DATA_OVERLAY",
+        ]:
             score += 0.20
             break
 
@@ -54,11 +61,7 @@ def generate_forensic_report(db: Session, analysis: Analysis) -> LLMReport:
         .order_by(Candidate.final_score.desc())
         .all()
     )
-    evidence_objs = (
-        db.query(EvidenceObject)
-        .filter(EvidenceObject.analysis_id == analysis.id)
-        .all()
-    )
+    evidence_objs = db.query(EvidenceObject).filter(EvidenceObject.analysis_id == analysis.id).all()
 
     # Calculate overall stego likelihood
     stego_likelihood = calculate_overall_stego_likelihood(
@@ -77,7 +80,7 @@ def generate_forensic_report(db: Session, analysis: Analysis) -> LLMReport:
             "status": top_cand.status,
         }
 
-    evidence_summary: Dict[str, Any] = {
+    evidence_summary: dict[str, Any] = {
         "original_filename": analysis.original_filename,
         "sha256": analysis.sha256,
         "detected_type": analysis.detected_type,

@@ -34,32 +34,32 @@ dev:
 
 test:
 	@echo "Running full test suite..."
-	cd backend && uv run pytest tests/ -v
+	cd backend && uv run --no-sync pytest tests/ -v
 
 test-unit:
 	@echo "Running unit tests..."
-	cd backend && uv run pytest tests/unit/ -v
+	cd backend && uv run --no-sync pytest tests/unit/ -v
 
 test-security:
 	@echo "Running security tests..."
-	cd backend && uv run pytest tests/security/ -v
+	cd backend && uv run --no-sync pytest tests/security/ -v
 
 test-integration:
 	@echo "Running integration tests..."
-	cd backend && uv run pytest tests/integration/ -v
+	cd backend && uv run --no-sync pytest tests/integration/ -v
 
 lint:
 	@echo "Linting backend with ruff..."
-	cd backend && uv run ruff check app/ tests/
+	cd backend && uv run --no-sync ruff check app/ tests/
 	@echo "Linting frontend..."
 	cd frontend && npm run lint || true
 
 typecheck:
 	@echo "Running backend typecheck..."
-	cd backend && uv run mypy app/ || true
+	cd backend && uv run --no-sync mypy app/ || true
 
 format:
-	cd backend && uv run ruff format app/ tests/
+	cd backend && uv run --no-sync ruff format app/ tests/
 
 docker-build:
 	docker compose build

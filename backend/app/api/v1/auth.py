@@ -1,14 +1,16 @@
 """
 Authentication API endpoints for StegoSentinel.
 """
+
 from datetime import timedelta
+
 from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
+
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.security import create_access_token, get_current_user_payload
-from app.schemas.auth import Token, UserCreate, UserRead, UserLogin
+from app.schemas.auth import Token, UserCreate, UserLogin, UserRead
 from app.services.auth_service import auth_service
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])

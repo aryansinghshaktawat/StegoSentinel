@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import List, Optional
+
 from pydantic import BaseModel, ConfigDict
 
 
@@ -12,7 +12,7 @@ class EvidenceObjectBase(BaseModel):
     extraction_method: str
     source_offset: int = 0
     recursion_depth: int = 0
-    parent_id: Optional[str] = None
+    parent_id: str | None = None
 
 
 class EvidenceObjectCreate(EvidenceObjectBase):
@@ -28,4 +28,4 @@ class EvidenceObjectRead(EvidenceObjectBase):
 
 
 class EvidenceTreeNode(EvidenceObjectRead):
-    children: List["EvidenceTreeNode"] = []
+    children: list["EvidenceTreeNode"] = []

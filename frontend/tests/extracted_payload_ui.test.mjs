@@ -26,18 +26,25 @@ const { code: compiledCode } = sucrase.transform(sourceCode, {
 // Load transpiled component module
 const mod = { exports: {} };
 const runner = new Function("require", "module", "exports", compiledCode);
-// Mock next/link for standalone rendering
+// Mock next/link and @/lib/api for standalone rendering
 const customRequire = (id) => {
   if (id === "next/link") {
     return ({ href, children, ...props }) => React.createElement("a", { href, ...props }, children);
   }
-  return import.meta.resolve ? {} : {};
+  if (id === "@/lib/api") {
+    return {
+      api: {
+        getDownloadUrl: (id) => `/api/v1/evidence/${id}/download`,
+      },
+    };
+  }
+  return null;
 };
-// Bind standard node require alongside next/link mock
+// Bind standard node require alongside mocks
 import { createRequire } from "node:module";
 const nativeRequire = createRequire(import.meta.url);
 runner(
-  (id) => (id === "next/link" ? customRequire(id) : nativeRequire(id)),
+  (id) => customRequire(id) || nativeRequire(id),
   mod,
   mod.exports
 );

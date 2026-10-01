@@ -12,6 +12,7 @@ import {
   ArrowRight,
 } from "lucide-react";
 import { Candidate, CandidatePayload } from "@/types";
+import { api } from "@/lib/api";
 
 export interface ExtractedPayloadViewProps {
   payload: CandidatePayload | null;
@@ -79,7 +80,12 @@ export function ExtractedPayloadView({
     ? formatTechniqueDetails(activeCandidate.technique, activeCandidate.parameters)
     : null;
 
-  const downloadUrl = payload?.evidence?.download_url || (activeCandidate?.evidence_object_id ? `/api/v1/evidence/${activeCandidate.evidence_object_id}/download` : undefined);
+  const evidenceId = payload?.evidence_object_id || activeCandidate?.evidence_object_id || payload?.evidence?.id;
+  const downloadUrl = evidenceId
+    ? api.getDownloadUrl(evidenceId)
+    : payload?.evidence?.download_url
+    ? `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1"}${payload.evidence.download_url}`
+    : undefined;
 
   return (
     <div
